@@ -168,7 +168,7 @@ impl BurnSamplePoint {
         mining_commitment_window: u8,
         mut block_commits: Vec<Vec<LeaderBlockCommitOp>>,
         mut missed_commits: Vec<Vec<MissedBlockCommit>>,
-        burn_blocks: Vec<bool>,
+        expects_single_commit: Vec<bool>,
     ) -> Vec<BurnSamplePoint> {
         // sanity check
         let window_size = block_commits.len() as u8;
@@ -178,7 +178,7 @@ impl BurnSamplePoint {
             &block_commits,
             &missed_commits,
         );
-        assert_eq!(burn_blocks.len(), block_commits.len());
+        assert_eq!(expects_single_commit.len(), block_commits.len());
 
         // first, let's link all of the current block commits to the priors
         let mut commits_with_priors: Vec<_> =
@@ -213,8 +213,8 @@ impl BurnSamplePoint {
 
             // find the UTXO index that each last linked_commit must have spent in order to be
             // chained to the block-commit (or missed-commit) at this relative block height
-            let commit_is_burn = burn_blocks[rel_block_height as usize];
-            let expected_index = LeaderBlockCommitOp::expected_chained_utxo(commit_is_burn);
+            let expect_single_commit = expects_single_commit[rel_block_height as usize];
+            let expected_index = LeaderBlockCommitOp::expected_chained_utxo(expect_single_commit);
 
             for linked_commit in commits_with_priors.iter_mut() {
                 let end = linked_commit.iter().rev().find_map(|o| o.as_ref()).unwrap(); // guaranteed to be at least 1 non-none entry

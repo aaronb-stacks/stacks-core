@@ -410,6 +410,9 @@ impl PoxConstants {
         )
     }
 
+    /// Note: even in PoX-waterfall, the number of reward slots is used to
+    ///  set signer-weights. Any future cleanup of `OUTPUTS_PER_COMMIT` or `reward_slots`
+    ///  will need to contend with this.
     pub fn reward_slots(&self) -> u32 {
         (self.reward_cycle_length - self.prepare_length)
             * u32::try_from(OUTPUTS_PER_COMMIT).expect("FATAL: > 2^32 outputs per commit")

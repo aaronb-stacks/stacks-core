@@ -306,24 +306,31 @@ impl BurnchainStateTransition {
         // and/or which sortitions must be PoB due to them falling in a prepare phase.
         let window_end_height = parent_snapshot.block_height + 1;
         let window_start_height = window_end_height + 1 - (windowed_block_commits.len() as u64);
-        let mut burn_blocks = vec![false; windowed_block_commits.len()];
-
-        // set burn_blocks flags to accommodate prepare phases and PoX sunset
-        for (i, b) in burn_blocks.iter_mut().enumerate() {
-            if PoxConstants::has_pox_sunset(epoch_id)
+        let mut expects_single_commit = vec![false; windowed_block_commits.len()];
+        // set expects_single_commit flags to accommodate prepare phases, PoX sunset, and waterfall PoX
+        let wf_pox_start_ht = sort_tx.get_first_pox_waterfall_block()?;
+        for (i, expect_single_commit) in expects_single_commit.iter_mut().enumerate() {
+            let height =
+                window_start_height + u64::try_from(i).expect("FATAL: usize did not fit in u64");
+            *expect_single_commit = if PoxConstants::has_pox_sunset(epoch_id)
                 && burnchain
                     .pox_constants
-                    .is_after_pox_sunset_end(window_start_height + (i as u64), epoch_id)
+                    .is_after_pox_sunset_end(height, epoch_id)
             {
-                // past PoX sunset, so must burn
-                *b = true;
-            } else if burnchain.is_in_prepare_phase(window_start_height + (i as u64)) {
-                // must burn
-                *b = true;
+                // past PoX sunset, so must burn -> expect a single commit
+                true
+            } else if burnchain.is_in_prepare_phase(height) {
+                // must burn -> expect a single commit
+                true
             } else {
-                // must not burn
-                *b = false;
-            }
+                if height >= wf_pox_start_ht {
+                    // PoX waterfall expects a single commit
+                    true
+                } else {
+                    // Pre-PoX waterfall and non-burn expects 2 outputs
+                    false
+                }
+            };
         }
 
         // calculate the burn distribution from these operations.
@@ -332,7 +339,7 @@ impl BurnchainStateTransition {
             epoch_id.mining_commitment_window(),
             windowed_block_commits.clone(),
             windowed_missed_commits.clone(),
-            burn_blocks,
+            expects_single_commit,
         );
         BurnSamplePoint::prometheus_update_miner_commitments(&burn_dist);
 

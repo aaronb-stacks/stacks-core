@@ -1626,7 +1626,11 @@ impl BlockMinerThread {
 
         parent_block_info.stacks_parent_header.microblock_tail = None;
 
-        let signer_bitvec_len = reward_set.rewarded_addresses.len().try_into().ok();
+        let signer_bitvec_len = reward_set
+            .rewarded_addresses()
+            .map_or(0, |a| a.len())
+            .try_into()
+            .ok();
 
         if !self.validate_timestamp_info(
             get_epoch_time_secs(),
