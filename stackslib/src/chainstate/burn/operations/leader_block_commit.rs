@@ -253,6 +253,7 @@ impl LeaderBlockCommitOp {
         burnchain: &Burnchain,
         block_header: &BurnchainBlockHeader,
         epoch_id: StacksEpochId,
+        first_pox_waterfall_block: u64,
         tx: &BurnchainTransaction,
     ) -> Result<LeaderBlockCommitOp, op_error> {
         LeaderBlockCommitOp::parse_from_tx(
@@ -260,6 +261,7 @@ impl LeaderBlockCommitOp {
             block_header.block_height,
             &block_header.block_hash,
             epoch_id,
+            first_pox_waterfall_block,
             tx,
         )
     }
@@ -415,6 +417,7 @@ impl LeaderBlockCommitOp {
         block_height: u64,
         block_hash: &BurnchainHeaderHash,
         epoch_id: StacksEpochId,
+        first_pox_waterfall_block: u64,
         tx: &BurnchainTransaction,
     ) -> Result<LeaderBlockCommitOp, op_error> {
         // can't be too careful...
@@ -477,7 +480,13 @@ impl LeaderBlockCommitOp {
             return Err(op_error::ParseError);
         }
 
-        let commits_calc = if epoch_id.uses_waterfall_pox() {
+        // Gate the parse format on the cycle-aligned waterfall threshold (matching
+        // `check_pox`), not on `epoch_id.uses_waterfall_pox()`. There is a transition
+        // window where the epoch is >= 3.5 but the chain has not yet crossed into
+        // the first waterfall reward cycle, during which commits are still V0
+        // 2-output. Gating on epoch alone caused those commits to be parsed as
+        // single-output waterfall and then rejected by `check_pox_pre_waterfall`.
+        let commits_calc = if block_height >= first_pox_waterfall_block {
             Self::parse_pox_waterfall_commits(&outputs, output_0)?
         } else {
             Self::parse_pre_pox_waterfall_commits(
@@ -1451,6 +1460,7 @@ mod tests {
             16843022,
             &BurnchainHeaderHash([0; 32]),
             StacksEpochId::Epoch2_05,
+            u64::MAX,
             &tx,
         )
         .unwrap_err();
@@ -1463,6 +1473,7 @@ mod tests {
             16843022,
             &BurnchainHeaderHash([0; 32]),
             StacksEpochId::Epoch21,
+            u64::MAX,
             &tx,
         )
         .unwrap();
@@ -1518,6 +1529,7 @@ mod tests {
             16843022,
             &BurnchainHeaderHash([0; 32]),
             StacksEpochId::Epoch2_05,
+            u64::MAX,
             &tx,
         )
         .unwrap();
@@ -1532,6 +1544,7 @@ mod tests {
             16843022,
             &BurnchainHeaderHash([0; 32]),
             StacksEpochId::Epoch21,
+            u64::MAX,
             &tx,
         )
         .unwrap();
@@ -1595,6 +1608,7 @@ mod tests {
             16843019,
             &BurnchainHeaderHash([0; 32]),
             StacksEpochId::Epoch2_05,
+            u64::MAX,
             &tx,
         )
         .unwrap();
@@ -1650,6 +1664,7 @@ mod tests {
             16843019,
             &BurnchainHeaderHash([0; 32]),
             StacksEpochId::Epoch2_05,
+            u64::MAX,
             &tx,
         )
         .unwrap_err()
@@ -1726,6 +1741,7 @@ mod tests {
             16843019,
             &BurnchainHeaderHash([0; 32]),
             StacksEpochId::Epoch2_05,
+            u64::MAX,
             &tx,
         )
         .unwrap();
@@ -1771,6 +1787,7 @@ mod tests {
             16843019,
             &BurnchainHeaderHash([0; 32]),
             StacksEpochId::Epoch2_05,
+            u64::MAX,
             &tx,
         )
         .unwrap_err()
@@ -1824,6 +1841,7 @@ mod tests {
             16843019,
             &BurnchainHeaderHash([0; 32]),
             StacksEpochId::Epoch2_05,
+            u64::MAX,
             &tx,
         )
         .unwrap_err()
@@ -1901,6 +1919,7 @@ mod tests {
             16843019,
             &BurnchainHeaderHash([0; 32]),
             StacksEpochId::Epoch2_05,
+            u64::MAX,
             &tx,
         )
         .unwrap_err()
@@ -2017,6 +2036,7 @@ mod tests {
                 &burnchain,
                 &header,
                 StacksEpochId::Epoch2_05,
+                u64::MAX,
                 &burnchain_tx,
             );
 

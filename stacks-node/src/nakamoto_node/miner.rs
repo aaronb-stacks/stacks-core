@@ -1626,11 +1626,12 @@ impl BlockMinerThread {
 
         parent_block_info.stacks_parent_header.microblock_tail = None;
 
-        let signer_bitvec_len = reward_set
-            .rewarded_addresses()
-            .map_or(0, |a| a.len())
-            .try_into()
-            .ok();
+        // Length of the per-block `pox_treatment` BitVec. Must be `> 0` —
+        // the BitVec codec rejects zero-length bitvecs at deserialization.
+        // Waterfall reward sets have no `rewarded_addresses`, so the V0-only
+        // accessor returned `None` and the bitvec ended up empty, silently
+        // breaking signer-side parsing of the proposal.
+        let signer_bitvec_len = reward_set.pox_treatment_bitvec_len();
 
         if !self.validate_timestamp_info(
             get_epoch_time_secs(),
@@ -1692,7 +1693,7 @@ impl BlockMinerThread {
             // we'll invoke the event dispatcher ourselves so that it calculates the
             //  correct signer_signature_hash for `process_mined_nakamoto_block_event`
             Some(&self.event_dispatcher),
-            signer_bitvec_len.unwrap_or(0),
+            signer_bitvec_len,
             &replay_transactions,
         )
         .map_err(|e| {

@@ -13,8 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+#[cfg(any(test, feature = "testing"))]
+use std::sync::LazyLock;
 
 use clarity::vm::events::StacksTransactionEvent;
 use clarity::vm::types::{
@@ -24,12 +26,14 @@ use clarity::vm::{ClarityName, SymbolicExpression, Value};
 use stacks_common::types::chainstate::{StacksAddress, StacksBlockId};
 use stacks_common::types::StacksEpochId;
 use stacks_common::util::hash::{to_hex, Hash160};
+#[cfg(any(test, feature = "testing"))]
+use stacks_common::util::tests::TestFlag;
 
 use crate::burnchains::PoxConstants;
 use crate::chainstate::burn::db::sortdb::SortitionDB;
 use crate::chainstate::stacks::address::PoxAddress;
 use crate::chainstate::stacks::boot::{
-    NakamotoSignerEntry, PoxVersions, RawRewardSetEntry, RewardSet, WaterfallCycleSet,
+    NakamotoSignerEntry, PoxVersions, RawRewardSetEntry, RewardSet, WaterfallCycleSet, POX_5_NAME,
     SIGNERS_MAX_LIST_SIZE, SIGNERS_NAME, SIGNERS_PK_LEN, SIGNERS_UPDATE_STATE,
     SIGNERS_VOTING_FUNCTION_NAME, SIGNERS_VOTING_NAME,
 };
@@ -39,6 +43,60 @@ use crate::clarity::vm::clarity::{ClarityConnection, TransactionConnection};
 use crate::clarity_vm::clarity::ClarityTransactionConnection;
 use crate::util_lib::boot;
 use crate::util_lib::boot::boot_code_id;
+
+/// Test-only override: when set, `pox_5_compute_and_update_signers` uses this
+/// `PoxAddress` as the sBTC recipient for the constructed `WaterfallCycleSet`
+/// instead of deriving one from PoX-5 state.
+#[cfg(any(test, feature = "testing"))]
+pub static TEST_WATERFALL_SBTC_ADDRESS_OVERRIDE: LazyLock<TestFlag<PoxAddress>> =
+    LazyLock::new(TestFlag::default);
+
+/// Test-only override: when set, `pox_5_compute_and_update_signers` substitutes
+/// these `(signer_key, amount_ustx)` pairs in place of what the (placeholder)
+/// PoX-5 contract body would produce for the given reward cycle. The pairs are
+/// fed through `pox_5_make_signer_set` so threshold/weight/sort all match the
+/// production code path.
+#[cfg(any(test, feature = "testing"))]
+pub static TEST_WATERFALL_SIGNER_SET_OVERRIDE: LazyLock<
+    TestFlag<HashMap<u64, Vec<([u8; SIGNERS_PK_LEN], u128)>>>,
+> = LazyLock::new(TestFlag::default);
+
+/// Test-only override: when set to `Some(true)`, force the PoX-5 dispatch arm
+/// in `check_and_handle_prepare_phase_start` to run as soon as
+/// `epoch >= Epoch35`. Without this, `PoxConstants::active_pox_contract` never
+/// returns `pox-5` (production routing for PoX-5 is not yet wired), so the
+/// PoX-5 code path is unreachable.
+#[cfg(any(test, feature = "testing"))]
+pub static TEST_FORCE_POX_5_ACTIVE: LazyLock<TestFlag<bool>> = LazyLock::new(TestFlag::default);
+
+#[cfg(any(test, feature = "testing"))]
+fn waterfall_sbtc_address_override() -> Option<PoxAddress> {
+    TEST_WATERFALL_SBTC_ADDRESS_OVERRIDE.get_opt()
+}
+#[cfg(not(any(test, feature = "testing")))]
+fn waterfall_sbtc_address_override() -> Option<PoxAddress> {
+    None
+}
+
+#[cfg(any(test, feature = "testing"))]
+fn waterfall_signer_set_override(reward_cycle: u64) -> Option<Vec<([u8; SIGNERS_PK_LEN], u128)>> {
+    TEST_WATERFALL_SIGNER_SET_OVERRIDE
+        .get_opt()
+        .and_then(|map| map.get(&reward_cycle).cloned())
+}
+#[cfg(not(any(test, feature = "testing")))]
+fn waterfall_signer_set_override(_reward_cycle: u64) -> Option<Vec<([u8; SIGNERS_PK_LEN], u128)>> {
+    None
+}
+
+#[cfg(any(test, feature = "testing"))]
+fn force_pox_5_active() -> bool {
+    TEST_FORCE_POX_5_ACTIVE.get_opt().unwrap_or(false)
+}
+#[cfg(not(any(test, feature = "testing")))]
+fn force_pox_5_active() -> bool {
+    false
+}
 
 pub struct NakamotoSigners();
 
@@ -591,12 +649,36 @@ impl NakamotoSigners {
         let is_mainnet = clarity.is_mainnet();
         let signers_contract = &boot_code_id(SIGNERS_NAME, is_mainnet);
 
-        let mut entries =
-            Self::pox_5_stake_entries(clarity, reward_cycle, pox_contract, pox_constants.clone())?;
-
-        // compute the signing set, and then update the signers db
-        let _pox_contract_id = boot_code_id(pox_contract, is_mainnet);
-        let signer_set = Self::pox_5_make_signer_set(&mut entries, pox_constants)?;
+        // Build the `(signer_key, amount_ustx)` pair stream: either from a test
+        // override (when the PoX-5 contract is unimplemented) or from the live
+        // PoX-5 contract via `pox_5_stake_entries`. The pair stream is then run
+        // through `pox_5_make_signer_set` so threshold, weight, and sort order
+        // are computed identically in both paths.
+        let signer_set = if let Some(override_pairs) = waterfall_signer_set_override(reward_cycle) {
+            let stub_user = StandardPrincipalData::transient();
+            let stub_first_reward_cycle = u128::from(reward_cycle);
+            let mut entries = override_pairs
+                .into_iter()
+                .map(move |(signer_key, amount_ustx)| {
+                    Ok(RawPox5Entry {
+                        user: stub_user.clone(),
+                        num_cycles: 1,
+                        amount_ustx,
+                        first_reward_cycle: stub_first_reward_cycle,
+                        signer_key,
+                    })
+                });
+            Self::pox_5_make_signer_set(&mut entries, pox_constants)?
+        } else {
+            let mut entries = Self::pox_5_stake_entries(
+                clarity,
+                reward_cycle,
+                pox_contract,
+                pox_constants.clone(),
+            )?;
+            let _pox_contract_id = boot_code_id(pox_contract, is_mainnet);
+            Self::pox_5_make_signer_set(&mut entries, pox_constants)?
+        };
 
         let events = Self::update_signers(
             clarity,
@@ -612,7 +694,8 @@ impl NakamotoSigners {
         //  we should do it here
 
         // TODO: compute the actual sBTC address for this cycle
-        let sbtc_address = PoxAddress::standard_burn_address(is_mainnet);
+        let sbtc_address = waterfall_sbtc_address_override()
+            .unwrap_or_else(|| PoxAddress::standard_burn_address(is_mainnet));
 
         Ok(SignerCalculation {
             reward_set: RewardSet::Waterfall(WaterfallCycleSet {
@@ -648,7 +731,7 @@ impl NakamotoSigners {
                         "error" => err_str
                     );
                     return Err(ChainstateError::PoxNoRewardCycle);
-                },
+                }
             };
 
             total_ustx_locked += entry.amount_ustx;
@@ -716,7 +799,12 @@ impl NakamotoSigners {
             return Ok(None);
         };
 
-        let active_pox_contract = pox_constants.active_pox_contract(burn_tip_height.into());
+        let active_pox_contract = if force_pox_5_active() && current_epoch >= StacksEpochId::Epoch35
+        {
+            POX_5_NAME
+        } else {
+            pox_constants.active_pox_contract(burn_tip_height.into())
+        };
 
         let Some(current_pox_version) = PoxVersions::lookup_by_name(active_pox_contract) else {
             debug!("Active PoX contract is not a recognized version, skipping .signers updates");

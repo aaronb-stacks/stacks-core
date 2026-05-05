@@ -859,8 +859,10 @@ impl EventDispatcher {
         contract_id: QualifiedContractIdentifier,
         modified_slots: Vec<StackerDBChunkData>,
     ) {
-        debug!(
-            "event_dispatcher: New StackerDB chunk events for {contract_id}: {modified_slots:?}"
+        info!(
+            "DIAG event_dispatcher: New StackerDB chunk events";
+            "contract_id" => %contract_id,
+            "num_chunks" => modified_slots.len(),
         );
 
         let interested_observers = self.filter_observers(&self.stackerdb_observers_lookup, false);
@@ -870,6 +872,12 @@ impl EventDispatcher {
             .lock()
             .expect("FATAL: failed to lock StackerDB channel mutex");
         let interested_receiver = stackerdb_channel.is_active(&contract_id);
+        info!(
+            "DIAG chunk dispatch decision";
+            "contract_id" => %contract_id,
+            "interested_observers" => interested_observers.len(),
+            "interested_receiver" => interested_receiver.is_some(),
+        );
         if interested_observers.is_empty() && interested_receiver.is_none() {
             return;
         }

@@ -1232,22 +1232,15 @@ pub trait SortitionHandle {
     ///
     /// This is the first block of the cycle whose start height is after Epoch35.
     fn get_first_pox_waterfall_block(&self) -> Result<u64, db_error> {
-        let conn = self.sqlite();
-        let first_block_ht = self.first_burn_block_height();
-        let pox_constants = self.pox_constants();
         let Some(epoch_wf) =
-            SortitionDB::get_stacks_epoch_by_epoch_id(conn, &StacksEpochId::Epoch35)?
+            SortitionDB::get_stacks_epoch_by_epoch_id(self.sqlite(), &StacksEpochId::Epoch35)?
         else {
             warn!("Attempted to query first PoX waterfall block when epoch is undefined, returning u32::max");
             return Ok(u32::MAX.into());
         };
-        // this is the initial reward-cycle when the waterfall epoch begins, however the first reward-cycle which
-        //   follows waterfall epoch rules is the next one.
-        let initial_rc = pox_constants
-            .block_height_to_reward_cycle(first_block_ht, epoch_wf.start_height)
-            .ok_or_else(|| db_error::Corruption)?;
-        let first_wf_rc = initial_rc.saturating_add(1);
-        Ok(pox_constants.nakamoto_first_block_of_cycle(first_block_ht, first_wf_rc))
+        self.pox_constants()
+            .first_pox_waterfall_block(self.first_burn_block_height(), epoch_wf.start_height)
+            .ok_or(db_error::Corruption)
     }
 }
 

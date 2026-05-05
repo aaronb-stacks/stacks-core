@@ -546,16 +546,33 @@ impl<T: SignerEventTrait> TryFrom<StackerDBChunksEvent> for SignerEvent<T> {
 
     fn try_from(event: StackerDBChunksEvent) -> Result<Self, Self::Error> {
         let received_time = SystemTime::now();
+        info!(
+            "DIAG signer received StackerDBChunksEvent";
+            "contract" => %event.contract_id,
+            "num_slots" => event.modified_slots.len(),
+        );
         let signer_event = if event.contract_id.name.as_str() == MINERS_NAME
             && event.contract_id.is_boot()
         {
             let mut messages = vec![];
             for chunk in event.modified_slots {
-                let Ok(msg) = T::consensus_deserialize(&mut chunk.data.as_slice()) else {
-                    continue;
-                };
-                messages.push(msg);
+                match T::consensus_deserialize(&mut chunk.data.as_slice()) {
+                    Ok(msg) => messages.push(msg),
+                    Err(e) => {
+                        warn!(
+                            "DIAG signer failed to deserialize miner chunk";
+                            "slot_id" => chunk.slot_id,
+                            "slot_version" => chunk.slot_version,
+                            "data_len" => chunk.data.len(),
+                            "error" => %e,
+                        );
+                    }
+                }
             }
+            info!(
+                "DIAG signer parsed miner chunk";
+                "messages_extracted" => messages.len(),
+            );
             SignerEvent::MinerMessages(messages)
         } else if event.contract_id.name.starts_with(SIGNERS_NAME) && event.contract_id.is_boot() {
             let Some((signer_set, _)) =
