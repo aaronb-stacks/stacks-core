@@ -560,19 +560,19 @@ impl PoxConstants {
 
     /// First burn block whose leader-block-commits use the PoX-5 waterfall
     /// single-output format: the start of the first reward cycle whose start
-    /// is strictly after `epoch_3_5_start_height`.
+    /// is strictly after `epoch_4_0_start_height`.
     ///
-    /// The reward cycle that *contains* `epoch_3_5_start_height` is the last
+    /// The reward cycle that *contains* `epoch_4_0_start_height` is the last
     /// classic-PoX cycle; the next reward cycle is the first to follow
-    /// waterfall rules. Returns `None` if `epoch_3_5_start_height` predates
+    /// waterfall rules. Returns `None` if `epoch_4_0_start_height` predates
     /// `first_block_height` (which would mean the burnchain config is corrupt).
     pub fn first_pox_waterfall_block(
         &self,
         first_block_height: u64,
-        epoch_3_5_start_height: u64,
+        epoch_4_0_start_height: u64,
     ) -> Option<u64> {
         let initial_rc =
-            self.block_height_to_reward_cycle(first_block_height, epoch_3_5_start_height)?;
+            self.block_height_to_reward_cycle(first_block_height, epoch_4_0_start_height)?;
         Some(self.nakamoto_first_block_of_cycle(first_block_height, initial_rc.saturating_add(1)))
     }
 

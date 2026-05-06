@@ -63,7 +63,7 @@ pub static TEST_WATERFALL_SIGNER_SET_OVERRIDE: LazyLock<
 
 /// Test-only override: when set to `Some(true)`, force the PoX-5 dispatch arm
 /// in `check_and_handle_prepare_phase_start` to run as soon as
-/// `epoch >= Epoch35`. Without this, `PoxConstants::active_pox_contract` never
+/// `epoch >= Epoch40`. Without this, `PoxConstants::active_pox_contract` never
 /// returns `pox-5` (production routing for PoX-5 is not yet wired), so the
 /// PoX-5 code path is unreachable.
 #[cfg(any(test, feature = "testing"))]
@@ -799,7 +799,7 @@ impl NakamotoSigners {
             return Ok(None);
         };
 
-        let active_pox_contract = if force_pox_5_active() && current_epoch >= StacksEpochId::Epoch35
+        let active_pox_contract = if force_pox_5_active() && current_epoch >= StacksEpochId::Epoch40
         {
             POX_5_NAME
         } else {

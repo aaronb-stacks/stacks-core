@@ -459,14 +459,14 @@ impl BurnchainBlock {
 impl Burnchain {
     /// Burn-block height at which leader-block-commits switch to the PoX-5 /
     /// sBTC "waterfall" single-output format, derived from an `EpochList`.
-    /// Returns `u64::MAX` if Epoch 3.5 is not configured (i.e., never), so
+    /// Returns `u64::MAX` if Epoch 4.0 is not configured (i.e., never), so
     /// callers can always use `block_height >= result` as the gate.
     pub fn first_pox_waterfall_block_from_epochs(&self, epochs: &EpochList) -> u64 {
         epochs
-            .get(StacksEpochId::Epoch35)
-            .and_then(|epoch_3_5| {
+            .get(StacksEpochId::Epoch40)
+            .and_then(|epoch_4_0| {
                 self.pox_constants
-                    .first_pox_waterfall_block(self.first_block_height, epoch_3_5.start_height)
+                    .first_pox_waterfall_block(self.first_block_height, epoch_4_0.start_height)
             })
             .unwrap_or(u64::MAX)
     }

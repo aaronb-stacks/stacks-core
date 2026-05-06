@@ -631,7 +631,7 @@ impl StacksEpochId {
     /// Does this epoch use a waterfall PoX model, where L1 commits go to a single
     /// address instead of the reward set slots logic?
     pub fn uses_waterfall_pox(&self) -> bool {
-        self >= &StacksEpochId::Epoch35
+        self >= &StacksEpochId::Epoch40
     }
 
     /// What is the coinbase (in uSTX) to award for the given burnchain height?

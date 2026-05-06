@@ -1230,10 +1230,10 @@ pub trait SortitionHandle {
     /// Return the bitcoin block height of the first bitcoin block where
     /// miner commitments use waterfall PoX.
     ///
-    /// This is the first block of the cycle whose start height is after Epoch35.
+    /// This is the first block of the cycle whose start height is after Epoch40.
     fn get_first_pox_waterfall_block(&self) -> Result<u64, db_error> {
         let Some(epoch_wf) =
-            SortitionDB::get_stacks_epoch_by_epoch_id(self.sqlite(), &StacksEpochId::Epoch35)?
+            SortitionDB::get_stacks_epoch_by_epoch_id(self.sqlite(), &StacksEpochId::Epoch40)?
         else {
             warn!("Attempted to query first PoX waterfall block when epoch is undefined, returning u32::max");
             return Ok(u32::MAX.into());
