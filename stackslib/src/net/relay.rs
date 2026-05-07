@@ -2354,7 +2354,7 @@ impl Relayer {
             for chunk in uploaded_chunks.into_iter() {
                 // forward if not stale
                 if chunk.rc_consensus_hash != *rc_consensus_hash {
-                    info!("Drop stale uploaded StackerDB chunk";
+                    debug!("Drop stale uploaded StackerDB chunk";
                            "stackerdb_contract_id" => %chunk.contract_id,
                            "slot_id" => chunk.chunk_data.slot_id,
                            "slot_version" => chunk.chunk_data.slot_version,

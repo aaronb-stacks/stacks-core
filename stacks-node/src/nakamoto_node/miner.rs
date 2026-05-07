@@ -1626,11 +1626,9 @@ impl BlockMinerThread {
 
         parent_block_info.stacks_parent_header.microblock_tail = None;
 
-        // Length of the per-block `pox_treatment` BitVec. Must be `> 0` —
-        // the BitVec codec rejects zero-length bitvecs at deserialization.
-        // Waterfall reward sets have no `rewarded_addresses`, so the V0-only
-        // accessor returned `None` and the bitvec ended up empty, silently
-        // breaking signer-side parsing of the proposal.
+        // Length of the per-block `pox_treatment` BitVec.
+        // Must be `> 0`:
+        //   the BitVec codec rejects zero-length bitvecs at deserialization.
         let signer_bitvec_len = reward_set.pox_treatment_bitvec_len();
 
         if !self.validate_timestamp_info(

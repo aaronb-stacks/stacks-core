@@ -21,7 +21,8 @@ use std::time::{Duration, Instant};
 use std::{env, thread};
 
 use clarity::vm::costs::ExecutionCost;
-use clarity::vm::types::PrincipalData;
+use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
+use clarity::vm::ContractName;
 use libsigner::v0::messages::{
     BlockAccepted, BlockRejection, BlockResponse, MessageSlotID, MinerSlotID, PeerInfo, RejectCode,
     RejectReason, SignerMessage, StateMachineUpdateContent, StateMachineUpdateMinerState,
@@ -218,14 +219,13 @@ impl<Z: SpawnedSignerTrait> SignerTest<Z> {
         info!("Ready to mine Nakamoto blocks!");
     }
 
-    /// Boot to Epoch 4.0 with an aggregate-pubkey scaffolding contract published.
+    /// Boot to Epoch 4.0 with an sBTC stub contract published
     ///
     /// This is the recommended bootstrap for Epoch 4.0 / PoX-5 integration tests.
-    /// In order:
     ///
     ///  1. Calls `boot_to_epoch_3` (chain lands at Epoch 3.0).
-    ///  2. Publishes a contract `<sender_addr>.<contract_name>` whose
-    ///     `(get-current-aggregate-pubkey)` read-only method returns `pubkey`.
+    ///  2. Publishes a contract `<sender_addr>.<contract_name>` with
+    ///     `(get-current-aggregate-pubkey)` returning `pubkey`.
     ///  3. Mines one Nakamoto tenure to include the publish, then waits for the
     ///     `/v2/contracts/source` RPC to confirm the contract is on-chain.
     ///  4. Mines additional tenures until burn height reaches the configured
@@ -233,10 +233,7 @@ impl<Z: SpawnedSignerTrait> SignerTest<Z> {
     ///     under Epoch 4.0.
     ///
     /// The test must have already written `Some(<sender_addr>.<contract_name>)`
-    /// into `naka_conf.node.pox_5_aggregate_pubkey_contract` via the constructor's
-    /// `node_config_modifier` closure — that's what `RunLoop::start` passes to
-    /// `set_pox_5_aggregate_pubkey_contract`. This function does not touch the
-    /// global itself.
+    /// into `naka_conf.node.pox_5_sbtc_contract`
     ///
     /// # Panics
     /// - If the test's epoch list does not configure an Epoch 4.0 start
@@ -252,14 +249,21 @@ impl<Z: SpawnedSignerTrait> SignerTest<Z> {
         contract_name: &str,
         pubkey: &[u8; 33],
     ) {
-        use clarity::vm::types::QualifiedContractIdentifier;
-        use clarity::vm::ContractName;
-
         self.boot_to_epoch_3();
 
         let conf = &self.running_nodes.conf;
         let http_origin = format!("http://{}", conf.node.rpc_bind);
         let sender_addr = tests::to_addr(sender_sk);
+        let pox_5_sbtc_contract = QualifiedContractIdentifier::new(
+            sender_addr.clone().into(),
+            contract_name.try_into().unwrap(),
+        );
+
+        if conf.node.pox_5_sbtc_contract.as_ref() != Some(&pox_5_sbtc_contract) {
+            panic!(
+                "Config must set pox_5_sbtc_contract correctly. Expected: {pox_5_sbtc_contract}"
+            );
+        }
 
         // Epoch 4.0 must be configured for this helper to make sense.
         let epoch_40_start = conf
@@ -292,9 +296,7 @@ impl<Z: SpawnedSignerTrait> SignerTest<Z> {
         // 2. Mine one tenure to include it.
         self.mine_nakamoto_block(Duration::from_secs(60), true);
 
-        // 3. Wait for /v2/contracts/source to reflect it. If the publish didn't
-        //    make it into the mined block (mempool race, fee, etc.) this is
-        //    where the failure surfaces.
+        // 3. Wait for /v2/contracts/source to reflect it.
         wait_for(60, || {
             Ok(contract_source_exists(
                 &http_origin,
@@ -927,29 +929,27 @@ impl MultipleMinerTest {
         info!("------------------------- Reached Epoch 3.0 -------------------------");
     }
 
-    /// Boot both miners to Epoch 4.0 with a stub `get-current-aggregate-pubkey`
-    /// contract published. Multi-miner analog of
-    /// `SignerTest::boot_to_epoch_4`:
+    /// Boot both miner to Epoch 4.0 with an sBTC stub contract published
     ///
-    ///  1. `boot_to_epoch_3()` (both miners synced).
-    ///  2. Publish the stub contract via node 1's RPC; both nodes pick it up
-    ///     via P2P.
-    ///  3. Mine one bitcoin block, then `wait_for` both nodes' RPC to
-    ///     reflect the publish.
-    ///  4. Sanity-check we haven't crossed Epoch 4.0 yet.
-    ///  5. Mine bitcoin blocks until both nodes' burn tips reach Epoch 4.0.
+    ///  1. Calls `boot_to_epoch_3` (chain lands at Epoch 3.0).
+    ///  2. Publishes a contract `<sender_addr>.<contract_name>` with
+    ///     `(get-current-aggregate-pubkey)` returning `pubkey`.
+    ///  3. Mines one Nakamoto tenure to include the publish, then waits for both
+    ///     nodes to reflect
+    ///  4. Mines additional tenures until burn height reaches the configured
+    ///     Epoch 4.0 start, then mines one more so the chain is producing blocks
+    ///     under Epoch 4.0.
     ///
-    /// Both nodes' configs must already carry the contract id in
-    /// `node.pox_5_aggregate_pubkey_contract` (set via the
-    /// `node_X_config_modifier` closures in `new_with_config_modifications`),
-    /// so each run-loop installs `POX_5_AGGREGATE_PUBKEY_CONTRACT` at startup.
+    /// The test must have already written `Some(<sender_addr>.<contract_name>)`
+    /// into `naka_conf.node.pox_5_sbtc_contract`
     ///
     /// # Panics
-    /// - If Epoch 4.0 isn't configured (start height missing or
-    ///   `STACKS_EPOCH_MAX`).
-    /// - If the contract is not visible on both nodes after one tenure.
-    /// - If the chain has already crossed Epoch 4.0 by the time the contract
-    ///   confirms.
+    /// - If the test's epoch list does not configure an Epoch 4.0 start
+    ///   (i.e., the start height is `STACKS_EPOCH_MAX` or the entry is missing).
+    /// - If the contract does not appear on-chain after one tenure (e.g.
+    ///   insufficient publish fee, mempool race, or wrong nonce).
+    /// - If the contract was confirmed at or after the Epoch 4.0 start height,
+    ///   meaning the first PoX-5 prepare phase already ran without it.
     pub fn boot_to_epoch_4(
         &mut self,
         sender_sk: &StacksPrivateKey,
@@ -976,6 +976,20 @@ impl MultipleMinerTest {
         let http_origin_1 = format!("http://{}", conf_1.node.rpc_bind);
         let http_origin_2 = format!("http://{}", conf_2.node.rpc_bind);
         let sender_addr = tests::to_addr(sender_sk);
+        let pox_5_sbtc_contract = QualifiedContractIdentifier::new(
+            sender_addr.clone().into(),
+            contract_name.try_into().unwrap(),
+        );
+        if conf_1.node.pox_5_sbtc_contract.as_ref() != Some(&pox_5_sbtc_contract) {
+            panic!(
+                "Config must set pox_5_sbtc_contract correctly. Expected: {pox_5_sbtc_contract}"
+            );
+        }
+        if conf_2.node.pox_5_sbtc_contract.as_ref() != Some(&pox_5_sbtc_contract) {
+            panic!(
+                "Config must set pox_5_sbtc_contract correctly. Expected: {pox_5_sbtc_contract}"
+            );
+        }
 
         // 1. Submit publish to node 1.
         let source = format!(
@@ -1032,13 +1046,12 @@ impl MultipleMinerTest {
              advancing to Epoch 4.0 start at {epoch_40_start}"
         );
 
-        // 5. Mine forward until both nodes are past Epoch 4.0. Before each
-        //    BTC block, wait for the chain to settle: both nodes must have
-        //    accepted the previous tenure's tenure-change block, and both
-        //    miners must have submitted a block-commit pointing at the
-        //    current tip. Otherwise the next sortition would race ahead of
-        //    one of the miners, producing tenure-extend / stale-extend
-        //    failures.
+        // 5. Mine forward until both nodes are past Epoch 4.0.
+        //
+        //    Before each BTC block, wait for the chain to settle:
+        //    both nodes must have accepted the previous tenure's
+        //    tenure-change block, and both miners must have submitted
+        //    a block-commit pointing at the current tip.
         while self.get_peer_info().burn_block_height < epoch_40_start {
             self.wait_for_both_miners_committed_to_current_tenure(&sortdb, 60)
                 .expect("settle chain before next bitcoin block");
@@ -1482,17 +1495,6 @@ impl MultipleMinerTest {
     /// Block until both nodes' chainstates are caught up to the current
     /// sortition's tenure AND both miners have submitted block-commits
     /// pointing at the current stacks tip.
-    ///
-    /// Stronger than `wait_for_chains`: not only must both nodes agree on the
-    /// stacks tip height, the tip must be a block of the current burn-tip's
-    /// tenure (i.e., the new tenure's miner has produced its tenure-change
-    /// block and both nodes have accepted it). And both miners must have a
-    /// commit on the burnchain mempool that targets the latest tip.
-    ///
-    /// Use this between BTC blocks in two-miner tests where both miners are
-    /// committing freely. It prevents the race where the next BTC block is
-    /// mined before the previous tenure has settled, which causes the next
-    /// tenure's miner to produce a stale extend that signers reject.
     pub fn wait_for_both_miners_committed_to_current_tenure(
         &self,
         sortdb: &SortitionDB,
@@ -1503,54 +1505,36 @@ impl MultipleMinerTest {
         let target_burn_height = burn_tip.block_height;
         let target_consensus_hash = burn_tip.consensus_hash.clone();
 
-        // 1. Both nodes must have a stacks tip in the current tenure (i.e.,
-        //    the tenure-change block of the most recent sortition has been
-        //    accepted by both nodes).
+        // 1. Both nodes must have a stacks tip in the current tenure
         wait_for(timeout_secs, || {
-            let Some(node_1_info) = get_chain_info_opt(&self.signer_test.running_nodes.conf)
-            else {
+            let Some(node_1_info) = get_chain_info_opt(&self.signer_test.running_nodes.conf) else {
                 return Ok(false);
             };
             let Some(node_2_info) = get_chain_info_opt(&self.conf_node_2) else {
                 return Ok(false);
             };
-            Ok(node_1_info.stacks_tip_height == node_2_info.stacks_tip_height
-                && node_1_info.stacks_tip_consensus_hash == target_consensus_hash
-                && node_2_info.stacks_tip_consensus_hash == target_consensus_hash)
+            Ok(
+                node_1_info.stacks_tip_height == node_2_info.stacks_tip_height
+                    && node_1_info.stacks_tip_consensus_hash == target_consensus_hash
+                    && node_2_info.stacks_tip_consensus_hash == target_consensus_hash,
+            )
         })?;
 
         // 2. Both miners must have submitted a block-commit at the current
-        //    burn height whose parent tenure id is the current sortition's
-        //    consensus hash (i.e., the commit builds on the latest tenure).
-        //    With the next BTC block, sortition will see both samples in the
-        //    burn distribution and no miner will be mid-flight on a stale
-        //    tenure-extend.
+        //    burn height and pointing at the current tenure
         wait_for(timeout_secs, || {
             let m1 = &self.signer_test.running_nodes.counters;
             let m2 = &self.rl2_counters;
-            info!("Check miner commits";
-                  "m1.last_burn_ht_commit" => m1.naka_submitted_commit_last_burn_height.load(Ordering::SeqCst),
-                  "m2.last_burn_ht_commit" => m2.naka_submitted_commit_last_burn_height.load(Ordering::SeqCst),
-                  "target_burn_height" => target_burn_height,
-                  "m1.last_parent_tenure_id_commit" => %m1.naka_submitted_commit_last_parent_tenure_id.get(),
-                  "m2.last_parent_tenure_id_commit" => %m2.naka_submitted_commit_last_parent_tenure_id.get()
-            );
             let m1_committed = m1
                 .naka_submitted_commit_last_burn_height
                 .load(Ordering::SeqCst)
                 >= target_burn_height
-                && m1
-                    .naka_submitted_commit_last_parent_tenure_id
-                    .get()
-                == target_consensus_hash;
+                && m1.naka_submitted_commit_last_parent_tenure_id.get() == target_consensus_hash;
             let m2_committed = m2
                 .naka_submitted_commit_last_burn_height
                 .load(Ordering::SeqCst)
                 >= target_burn_height
-                && m2
-                    .naka_submitted_commit_last_parent_tenure_id
-                    .get()
-                == target_consensus_hash;
+                && m2.naka_submitted_commit_last_parent_tenure_id.get() == target_consensus_hash;
             Ok(m1_committed && m2_committed)
         })?;
 

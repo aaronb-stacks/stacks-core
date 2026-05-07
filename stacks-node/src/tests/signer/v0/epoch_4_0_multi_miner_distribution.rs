@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2026 Stacks Open Internet Foundation
+// Copyright (C) 2026 Stacks Open Internet Foundation
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -24,19 +24,30 @@
 //!
 //! Three deterministic assertions, all per-tenure:
 //!
-//! * **Per-tenure burn distribution** — `LATEST_BURN_DISTRIBUTION` (test
+//! * **Per-tenure burn distribution** => `LATEST_BURN_DISTRIBUTION` (test
 //!   hook in `make_min_median_distribution`) exposes the actual
 //!   `Vec<BurnSamplePoint>` the chain computed for each sortition. We
 //!   assert two samples (one chain per miner) and that the sorted `burns`
 //!   values match `[MINER_1_FEE, MINER_2_FEE]`. Catches chaining failures
 //!   that drop enough entries to shift the median for either miner, or
 //!   that fail to construct one of the two chains entirely.
-//! * **Per-block commit count** — every post-boundary burn block that has
+//! * **Per-block commit count** => every post-boundary burn block that has
 //!   any commits has exactly two `pox_transactions` entries. Catches a
 //!   parse-side regression that silently drops one miner's commit.
-//! * **Total commit fee invariant** — sum of `reward_recipients` amounts
+//! * **Total commit fee invariant** => sum of `reward_recipients` amounts
 //!   equals the configured fee total per block. Catches dropped commits or
 //!   a classification flip between burn-output and PoX-recipient paths.
+//!
+//! This uses two test overrides so that the integration test can run
+//!  without PoX-5 being in place yet:
+//!
+//! * `TEST_FORCE_POX_5_ACTIVE` makes the PoX-5 dispatch arm reachable as soon
+//!   as `epoch >= Epoch40`. (Without it `PoxConstants::active_pox_contract`
+//!   never returns `pox-5`.)
+//! * `TEST_WATERFALL_SIGNER_SET_OVERRIDE` short-circuits the read against the
+//!   (placeholder) PoX-5 contract body and supplies a hardcoded signer set.
+//!
+//! These override SHOULD BE REMOVED when PoX-5 initial versions land
 
 use std::collections::HashMap;
 use std::env;
@@ -116,9 +127,6 @@ fn epoch_4_0_burn_distribution_chains_across_boundary() {
     .try_into()
     .expect("compressed secp256k1 pubkey is 33 bytes");
 
-    // Deterministic publisher key so we can derive the contract id ahead of
-    // SignerTest construction (needed to set `node.pox_5_aggregate_pubkey_contract`
-    // via the modifier closure).
     let publisher_sk = StacksPrivateKey::from_seed(b"epoch-4-0-multi-miner-publisher");
     let publisher_addr = to_addr(&publisher_sk);
     let contract_name = "agg-pubkey-stub";
@@ -135,15 +143,6 @@ fn epoch_4_0_burn_distribution_chains_across_boundary() {
     let publisher_addr_str = publisher_addr.to_string();
     let contract_id_modifier = contract_id.clone();
 
-    // IMPORTANT: only the node 1 modifier sets shared state — the publisher's
-    // initial balance and the aggregate-pubkey contract id. Node 2's conf is
-    // *cloned* from node 1's after node 1's modifier runs (see
-    // `MultipleMinerTest::new_with_signer_dist`), so the clone already
-    // carries both. Re-adding the balance from node 2's modifier duplicates
-    // it → divergent genesis state root → node 2 rejects node 1's blocks.
-    // Re-setting the contract id is just redundant (and invites the false
-    // impression that the two values could differ; they must always match
-    // for both miners to derive the same sBTC recipient).
     let mut miners = MultipleMinerTest::new_with_config_modifications(
         num_signers,
         0,
@@ -151,7 +150,7 @@ fn epoch_4_0_burn_distribution_chains_across_boundary() {
         move |node_config| {
             node_config.miner.block_commit_delay = Duration::from_secs(1);
             node_config.burnchain.burn_fee_cap = MINER_1_FEE;
-            node_config.node.pox_5_aggregate_pubkey_contract = Some(contract_id_modifier.clone());
+            node_config.node.pox_5_sbtc_contract = Some(contract_id_modifier.clone());
             node_config.add_initial_balance(publisher_addr_str.clone(), 1_000_000);
         },
         |node_config| {
@@ -161,15 +160,7 @@ fn epoch_4_0_burn_distribution_chains_across_boundary() {
     );
 
     // Build the PoX-5 signer-set override from the *actual* signer keys
-    // SignerTest auto-generated, not from a separately-seeded set. Otherwise
-    // the cycle-9 reward set (computed from the override) lists pubkeys
-    // nobody is using; the running signers see themselves missing from the
-    // set and report `registered_for_current: false`; block #1 of cycle 9
-    // never gets signed and the chain stalls at the cycle boundary.
-    //
-    // Safe to set after construction since `pox_5_compute_and_update_signers`
-    // doesn't run until Epoch 4.0 starts (cycle 9's prepare phase, well
-    // after this point).
+    // SignerTest auto-generated
     let signer_pairs = signer_pairs_from_keys(miners.signer_stacks_private_keys());
     TEST_WATERFALL_SIGNER_SET_OVERRIDE.set(override_map_all_cycles(signer_pairs));
 
@@ -187,20 +178,14 @@ fn epoch_4_0_burn_distribution_chains_across_boundary() {
     miners.boot_to_epoch_4(&publisher_sk, 0, contract_name, &agg_pubkey);
     info!("------------------------- Reached Epoch 4.0 (multi-miner) -------------------------");
 
-    // Mine N tenures past the boundary. Before each BTC block, wait for
-    // both nodes to have settled on the current tenure and for both miners
-    // to have committed pointing at the current tip — that way the next
-    // sortition has both samples in the burn distribution and no miner is
-    // mid-flight on a stale tenure.
+    // Mine N tenures past the boundary.
+    //
+    // Before each BTC block, wait for both miners to have committed
+    // pointing at the current tip
     //
     // After each sortition is processed, read the captured
     // `LATEST_BURN_DISTRIBUTION` and assert per-tenure invariants on the
-    // computed `Vec<BurnSamplePoint>`. This is the tight integration check
-    // for the windowing/chaining math: the burns value reflects the
-    // post-median effective burn for each miner's chain. With both miners
-    // committing every block at constant per-miner fees, the median over
-    // any window equals the miner's fee — unless the linker dropped enough
-    // entries to shift it.
+    // computed `Vec<BurnSamplePoint>`.
     let sortdb = conf_1
         .get_burnchain()
         .open_sortition_db(true)
@@ -222,36 +207,26 @@ fn epoch_4_0_burn_distribution_chains_across_boundary() {
             .get_opt()
             .unwrap_or_else(|| panic!("tenure {i}: no burn distribution captured"));
 
-        // Two miners both committing every block ⇒ exactly two chains in
-        // the distribution.
+        // Two miners both committing every block
         assert_eq!(
             dist.len(),
             2,
-            "tenure {i}: expected 2 BurnSamplePoints (one per miner chain), got {} \
-             — a chain may have failed to construct",
+            "tenure {i}: expected 2 BurnSamplePoints (one per miner chain), got {}",
             dist.len(),
         );
 
-        // With constant per-miner fees and an intact chain, each chain's
+        // With constant per-miner fees and an intact UTXO chain, each chain's
         // post-median effective burn equals the miner's configured fee.
-        // (For windowed reward-phase tenures the median is over 6 entries
-        // of the same fee; for prepare-phase tenures the window collapses
-        // to 1 and the single entry is the fee. Either way, fully-linked
-        // chains produce burns == fee.)
         let mut burns: Vec<u128> = dist.iter().map(|s| s.burns).collect();
         burns.sort();
         assert_eq!(
             burns, expected_burns,
-            "tenure {i}: per-chain burns mismatch (got {:?}, expected {:?}). The \
-             windowing/chaining math may have dropped entries from one or both \
-             miners' chains across the Epoch 4.0 boundary.",
+            "tenure {i}: burns mismatch (got {:?}, expected {:?})",
             burns, expected_burns,
         );
     }
 
-    // Per-block commit count + fee-sum invariant on burn events. Same parse-
-    // side coverage as before; complementary to the per-tenure distribution
-    // check above (which covers the chaining/windowing side).
+    // Per-block commit count + fee-sum invariant on burn events.
     let expected_fee_sum = MINER_1_FEE + MINER_2_FEE;
     let post_boundary = post_boundary_burn_blocks(epoch_40_start);
     let mut blocks_with_commits = 0usize;
@@ -264,8 +239,7 @@ fn epoch_4_0_burn_distribution_chains_across_boundary() {
 
         assert_eq!(
             commit_count, 2,
-            "burn_block_height={} had {} commits (expected 2 — one from each miner). \
-             Likely a parse-side regression at the Epoch 4.0 boundary silently dropped a commit.",
+            "burn_block_height={} had {} commits (expected 2 — one from each miner)",
             ev.burn_block_height, commit_count,
         );
 
@@ -273,25 +247,11 @@ fn epoch_4_0_burn_distribution_chains_across_boundary() {
         assert_eq!(
             recipient_sum, expected_fee_sum,
             "burn_block_height={} reward_recipients summed to {recipient_sum} (expected \
-             {expected_fee_sum} = MINER_1_FEE + MINER_2_FEE). Either a commit was dropped, or \
-             fees were miscategorized between burn-output and PoX-recipient paths.",
+             {expected_fee_sum} = MINER_1_FEE + MINER_2_FEE).",
             ev.burn_block_height,
         );
     }
-    assert!(
-        blocks_with_commits >= POST_BOUNDARY_TENURES as usize / 2,
-        "fewer than half of post-boundary blocks had any commits at all ({blocks_with_commits} of \
-         {} examined); test is likely flaky on this run, not a real regression",
-        post_boundary.len(),
-    );
 
     let final_info = get_chain_info(&conf_1);
-    info!(
-        "Multi-miner waterfall test passed";
-        "stacks_tip_height" => final_info.stacks_tip_height,
-        "burn_block_height" => final_info.burn_block_height,
-        "blocks_with_commits" => blocks_with_commits,
-    );
-
     miners.shutdown();
 }

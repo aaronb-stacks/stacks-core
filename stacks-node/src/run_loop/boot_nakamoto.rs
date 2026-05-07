@@ -22,6 +22,7 @@ use std::{fs, thread};
 use stacks::burnchains::Burnchain;
 use stacks::chainstate::burn::db::sortdb::SortitionDB;
 use stacks::chainstate::coordinator::comm::CoordinatorChannels;
+use stacks::chainstate::nakamoto::signer_set::set_testnet_pox_5_sbtc_contract;
 use stacks::net::p2p::PeerNetwork;
 use stacks_common::types::StacksEpochId;
 
@@ -135,6 +136,11 @@ impl BootRunLoop {
     /// The main entry point for the run loop. This starts either a 2.x-neon or 3.x-nakamoto
     /// node depending on the current burnchain height.
     pub fn start(&mut self, burnchain_opt: Option<Burnchain>, mine_start: u64) {
+        // PoX-5/sBTC testnet configuration for Epoch 4.0:
+        if let Some(contract) = self.config.node.pox_5_sbtc_contract.clone() {
+            set_testnet_pox_5_sbtc_contract(contract);
+        }
+
         match self.active_loop {
             InnerLoops::Epoch2(_) => self.start_from_neon(burnchain_opt, mine_start),
             InnerLoops::Epoch3(_) => self.start_from_naka(burnchain_opt, mine_start),

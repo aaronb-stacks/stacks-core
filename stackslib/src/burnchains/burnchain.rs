@@ -457,10 +457,10 @@ impl BurnchainBlock {
 }
 
 impl Burnchain {
-    /// Burn-block height at which leader-block-commits switch to the PoX-5 /
-    /// sBTC "waterfall" single-output format, derived from an `EpochList`.
-    /// Returns `u64::MAX` if Epoch 4.0 is not configured (i.e., never), so
-    /// callers can always use `block_height >= result` as the gate.
+    /// BTC height at which leader-block-commits switch to the PoX-5 /
+    /// sBTC "waterfall" single-output format
+    ///
+    /// Returns `u64::MAX` if Epoch 4.0 is not configured
     pub fn first_pox_waterfall_block_from_epochs(&self, epochs: &EpochList) -> u64 {
         epochs
             .get(StacksEpochId::Epoch40)
@@ -471,9 +471,8 @@ impl Burnchain {
             .unwrap_or(u64::MAX)
     }
 
-    /// Same as `first_pox_waterfall_block_from_epochs`, but reads epochs from a
-    /// `SortitionDB`. Used by production paths that have a sortdb in scope but
-    /// not an `EpochList`.
+    /// Same as `first_pox_waterfall_block_from_epochs`, but reads data from a
+    /// `SortitionDB`
     pub fn compute_first_pox_waterfall_block_via_sortdb(
         sort_db: &SortitionDB,
         burnchain: &Burnchain,

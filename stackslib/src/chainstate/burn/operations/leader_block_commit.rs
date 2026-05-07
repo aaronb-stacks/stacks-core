@@ -480,12 +480,8 @@ impl LeaderBlockCommitOp {
             return Err(op_error::ParseError);
         }
 
-        // Gate the parse format on the cycle-aligned waterfall threshold (matching
-        // `check_pox`), not on `epoch_id.uses_waterfall_pox()`. There is a transition
-        // window where the epoch is >= 4.0 but the chain has not yet crossed into
-        // the first waterfall reward cycle, during which commits are still V0
-        // 2-output. Gating on epoch alone caused those commits to be parsed as
-        // single-output waterfall and then rejected by `check_pox_pre_waterfall`.
+        // Gate the parse format on whether or not the first waterfall block has been
+        // reached (this primarily switches between expecting 1 or 2 commits).
         let commits_calc = if block_height >= first_pox_waterfall_block {
             Self::parse_pox_waterfall_commits(&outputs, output_0)?
         } else {

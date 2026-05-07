@@ -21,7 +21,6 @@ use clarity::vm::types::{
     PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, TupleData,
 };
 use clarity::vm::{ClarityName, SymbolicExpression, Value};
-use stacks_common::address::AddressHashMode;
 use stacks_common::types::chainstate::{StacksAddress, StacksBlockId};
 use stacks_common::types::StacksEpochId;
 use stacks_common::util::hash::{to_hex, Hash160};
@@ -30,16 +29,18 @@ use stacks_common::util::tests::TestFlag;
 
 use crate::burnchains::PoxConstants;
 use crate::chainstate::burn::db::sortdb::SortitionDB;
-use crate::chainstate::stacks::address::PoxAddress;
+use crate::chainstate::stacks::address::{PoxAddress, PoxAddressType32};
 use crate::chainstate::stacks::boot::{
     NakamotoSignerEntry, PoxVersions, RawRewardSetEntry, RewardSet, WaterfallCycleSet, POX_5_NAME,
     SIGNERS_MAX_LIST_SIZE, SIGNERS_NAME, SIGNERS_PK_LEN, SIGNERS_UPDATE_STATE,
     SIGNERS_VOTING_FUNCTION_NAME, SIGNERS_VOTING_NAME,
 };
 use crate::chainstate::stacks::db::{ClarityTx, StacksChainState};
+use crate::chainstate::stacks::sbtc::sbtc_deposit_taproot_output_key;
 use crate::chainstate::stacks::{Error as ChainstateError, StacksTransaction, TransactionPayload};
 use crate::clarity::vm::clarity::{ClarityConnection, TransactionConnection};
 use crate::clarity_vm::clarity::ClarityTransactionConnection;
+use crate::core::POX_5_SBTC_DEPOSIT_MAX_FEE_SATS;
 use crate::util_lib::boot;
 use crate::util_lib::boot::boot_code_id;
 
@@ -58,27 +59,37 @@ pub static TEST_WATERFALL_SIGNER_SET_OVERRIDE: LazyLock<
 /// `epoch >= Epoch40`. Without this, `PoxConstants::active_pox_contract` never
 /// returns `pox-5` (production routing for PoX-5 is not yet wired), so the
 /// PoX-5 code path is unreachable.
+///
+/// DELETE once PoX-5 activation height is set in PoxConstants
 #[cfg(any(test, feature = "testing"))]
 pub static TEST_FORCE_POX_5_ACTIVE: LazyLock<TestFlag<bool>> = LazyLock::new(TestFlag::default);
 
-/// Epoch 4.0 / PoX-5 scaffolding: contract whose read-only
-/// `get-current-aggregate-pubkey` returns the `(buff 33)` used to derive the
-/// per-cycle sBTC waterfall recipient. Set once at node startup from
-/// `NodeConfig::pox_5_aggregate_pubkey_contract`; read by
-/// `pox_5_compute_and_update_signers` from miner, coordinator, and
-/// proposal-validation paths alike. Goes away when PoX-5 routing is wired and
-/// the aggregate pubkey lives on-chain.
-static POX_5_AGGREGATE_PUBKEY_CONTRACT: LazyLock<Mutex<Option<QualifiedContractIdentifier>>> =
+/// The contract that PoX-5 will use to compute the single reward address (by calling
+///  `get-current-aggregate-pubkey`). This is only consulted in testnet/regtest.
+static TESTNET_POX_5_SBTC_CONTRACT: LazyLock<Mutex<Option<QualifiedContractIdentifier>>> =
     LazyLock::new(|| Mutex::new(None));
 
-/// Set the configured PoX-5 aggregate-pubkey contract id. Call once during
-/// node startup from the run-loop, with the value parsed out of `NodeConfig`.
-pub fn set_pox_5_aggregate_pubkey_contract(contract_id: Option<QualifiedContractIdentifier>) {
-    *POX_5_AGGREGATE_PUBKEY_CONTRACT.lock().unwrap() = contract_id;
+pub static MAINNET_POX_5_SBTC_CONTRACT: LazyLock<QualifiedContractIdentifier> =
+    LazyLock::new(|| {
+        QualifiedContractIdentifier::new(
+            StandardPrincipalData::null_principal(),
+            "sbtc-mainnet-placeholder".try_into().unwrap(),
+        )
+    });
+
+/// Set the PoX-5 SBTC contract id for the network.
+///
+/// Only consulted in regtest/testnet. Mainnet uses a constant.
+pub fn set_testnet_pox_5_sbtc_contract(contract_id: QualifiedContractIdentifier) {
+    let mut mutex = TESTNET_POX_5_SBTC_CONTRACT.lock().unwrap();
+    if mutex.is_some() && mutex.as_ref() != Some(&contract_id) {
+        panic!("Attempted to set PoX-5 sBTC contract when already set");
+    }
+    *mutex = Some(contract_id);
 }
 
-fn pox_5_aggregate_pubkey_contract() -> Option<QualifiedContractIdentifier> {
-    POX_5_AGGREGATE_PUBKEY_CONTRACT.lock().unwrap().clone()
+fn testnet_pox_5_sbtc_contract() -> Option<QualifiedContractIdentifier> {
+    TESTNET_POX_5_SBTC_CONTRACT.lock().unwrap().clone()
 }
 
 #[cfg(any(test, feature = "testing"))]
@@ -653,10 +664,7 @@ impl NakamotoSigners {
         let signers_contract = &boot_code_id(SIGNERS_NAME, is_mainnet);
 
         // Build the `(signer_key, amount_ustx)` pair stream: either from a test
-        // override (when the PoX-5 contract is unimplemented) or from the live
-        // PoX-5 contract via `pox_5_stake_entries`. The pair stream is then run
-        // through `pox_5_make_signer_set` so threshold, weight, and sort order
-        // are computed identically in both paths.
+        // override (while the PoX-5 contract is unimplemented)
         let signer_set = if let Some(override_pairs) = waterfall_signer_set_override(reward_cycle) {
             let stub_user = StandardPrincipalData::transient();
             let stub_first_reward_cycle = u128::from(reward_cycle);
@@ -693,40 +701,41 @@ impl NakamotoSigners {
             is_mainnet,
         )?;
 
-        // if we want to "write-back" any state to PoX-5 (e.g., computed weights)
-        //  we should do it here
+        let sbtc_contract_id = if is_mainnet {
+            MAINNET_POX_5_SBTC_CONTRACT.clone()
+        } else {
+            testnet_pox_5_sbtc_contract().expect(
+                "FATAL: no sBTC contract is defined, but PoX-5 reward sets are being calculated",
+            )
+        };
 
-        let sbtc_address = if let Some(contract_id) = pox_5_aggregate_pubkey_contract() {
-            // Scaffolding: derive the sBTC waterfall recipient as a P2PKH of the
-            // aggregate signer pubkey returned by the configured contract. The
-            // contract id is operator-set; this entire branch goes away once
-            // PoX-5 routing is wired and the aggregate pubkey lives on-chain.
-            let pubkey_buff = clarity
-                .eval_method_read_only(&contract_id, "get-current-aggregate-pubkey", &[])?
-                .expect_buff(33)
-                .map_err(|_| {
-                    ChainstateError::Expects(
-                        "get-current-aggregate-pubkey did not return a buffer of <= 33 bytes"
-                            .into(),
-                    )
-                })?;
-            if pubkey_buff.len() != 33 {
-                return Err(ChainstateError::Expects(format!(
+        let pubkey_buff = clarity
+            .eval_method_read_only(&sbtc_contract_id, "get-current-aggregate-pubkey", &[])?
+            .expect_buff(33)
+            .map_err(|_| {
+                ChainstateError::Expects(
+                    "get-current-aggregate-pubkey did not return a buffer of <= 33 bytes".into(),
+                )
+            })?;
+        if pubkey_buff.len() != 33 {
+            return Err(ChainstateError::Expects(format!(
                     "get-current-aggregate-pubkey returned {} bytes; expected exactly 33 (compressed secp256k1)",
                     pubkey_buff.len()
                 )));
-            }
-            let version = if is_mainnet {
-                AddressHashMode::SerializeP2PKH.to_version_mainnet()
-            } else {
-                AddressHashMode::SerializeP2PKH.to_version_testnet()
-            };
-            let stacks_addr = StacksAddress::new(version, Hash160::from_data(&pubkey_buff))
-                .map_err(|_| ChainstateError::Expects("invalid P2PKH version byte".into()))?;
-            PoxAddress::Standard(stacks_addr, Some(AddressHashMode::SerializeP2PKH))
-        } else {
-            PoxAddress::standard_burn_address(is_mainnet)
-        };
+        }
+        let pubkey_array: [u8; 33] = pubkey_buff.try_into().expect("length checked above");
+
+        let recipient = PrincipalData::Contract(boot_code_id(POX_5_NAME, is_mainnet));
+        let output_key = sbtc_deposit_taproot_output_key(
+            &pubkey_array,
+            &recipient,
+            POX_5_SBTC_DEPOSIT_MAX_FEE_SATS,
+        )?;
+
+        let sbtc_address = PoxAddress::Addr32(is_mainnet, PoxAddressType32::P2TR, output_key);
+
+        // if we want to "write-back" any state to PoX-5 (e.g., computed weights)
+        //  we should do it here
 
         Ok(SignerCalculation {
             reward_set: RewardSet::Waterfall(WaterfallCycleSet {

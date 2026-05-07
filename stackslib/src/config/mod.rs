@@ -2181,13 +2181,15 @@ pub struct NodeConfig {
     /// ---
     /// @default: `false`
     pub txindex: bool,
-    /// Epoch 4.0 / PoX-5 scaffolding: contract whose read-only
-    /// `get-current-aggregate-pubkey` returns a `(buff 33)`, used to derive the
-    /// per-cycle sBTC waterfall recipient. Devnet/test only — different
-    /// operators configuring different contracts will fork the chain.
+    /// Epoch 4.0 / PoX-5: the contract whose method
+    /// `get-current-aggregate-pubkey` returns the buff used to derive
+    /// the miner commit recipient.
+    ///
+    /// Devnet/testnet only => different operators configuring
+    /// different contracts will fork
     /// ---
     /// @default: `None`
-    pub pox_5_aggregate_pubkey_contract: Option<QualifiedContractIdentifier>,
+    pub pox_5_sbtc_contract: Option<QualifiedContractIdentifier>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -2450,7 +2452,7 @@ impl Default for NodeConfig {
             chain_liveness_poll_time_secs: 300,
             stacker_dbs: vec![],
             txindex: false,
-            pox_5_aggregate_pubkey_contract: None,
+            pox_5_sbtc_contract: None,
         }
     }
 }
@@ -3869,10 +3871,10 @@ pub struct NodeConfigFile {
     pub fault_injection_block_push_fail_probability: Option<u8>,
     /// enable transactions indexing, note this will require additional storage (in the order of gigabytes)
     pub txindex: Option<bool>,
-    /// Epoch 4.0 / PoX-5 scaffolding: contract id (as `principal.contract-name`)
-    /// whose `get-current-aggregate-pubkey` read-only method returns the
-    /// `(buff 33)` used to derive the per-cycle sBTC waterfall recipient.
-    pub pox_5_aggregate_pubkey_contract: Option<String>,
+    /// Epoch 4.0 / PoX-5: the contract whose method
+    /// `get-current-aggregate-pubkey` returns the buff used to derive
+    /// the miner commit recipient.
+    pub pox_5_sbtc_contract: Option<String>,
 }
 
 impl NodeConfigFile {
@@ -3966,12 +3968,12 @@ impl NodeConfigFile {
             },
 
             txindex: self.txindex.unwrap_or(default_node_config.txindex),
-            pox_5_aggregate_pubkey_contract: self
-                .pox_5_aggregate_pubkey_contract
+            pox_5_sbtc_contract: self
+                .pox_5_sbtc_contract
                 .as_deref()
                 .map(QualifiedContractIdentifier::parse)
                 .transpose()
-                .map_err(|e| format!("Invalid pox_5_aggregate_pubkey_contract: {e}"))?,
+                .map_err(|e| format!("Invalid pox_5_sbtc_contract: {e}"))?,
         };
         Ok(node_config)
     }

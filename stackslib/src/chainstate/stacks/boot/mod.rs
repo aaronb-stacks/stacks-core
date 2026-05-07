@@ -450,22 +450,15 @@ impl RewardSet {
     }
 
     /// Length of the `pox_treatment` BitVec a miner should construct in blocks
-    /// committing under this reward set.
+    /// during this reward set.
     ///
     /// * V0: one bit per reward-slot recipient.
-    /// * Waterfall: always 1 — there is a single sBTC output, and the bit
-    ///   indicates whether the miner rewarded it.
-    ///
-    /// Must be `> 0`; the BitVec codec rejects zero-length bitvecs on
-    /// deserialization (`stacks_common::bitvec`), which would cause the block
-    /// proposal to silently fail to parse on the signer side.
+    /// * Waterfall: always 1 => there is a single sBTC output. This treatment vec
+    ///    is no longer used in consensus, but the miner includes it for deserialization
+    ///    compatibility
     pub fn pox_treatment_bitvec_len(&self) -> u16 {
         match self {
-            RewardSet::V0(v0) => v0
-                .rewarded_addresses
-                .len()
-                .try_into()
-                .unwrap_or(u16::MAX),
+            RewardSet::V0(v0) => v0.rewarded_addresses.len().try_into().unwrap_or(u16::MAX),
             RewardSet::Waterfall(_) => 1,
         }
     }

@@ -564,8 +564,9 @@ impl PoxConstants {
     ///
     /// The reward cycle that *contains* `epoch_4_0_start_height` is the last
     /// classic-PoX cycle; the next reward cycle is the first to follow
-    /// waterfall rules. Returns `None` if `epoch_4_0_start_height` predates
-    /// `first_block_height` (which would mean the burnchain config is corrupt).
+    /// waterfall rules.
+    ///
+    /// Returns `None` if `epoch_4_0_start_height < first_block_height`
     pub fn first_pox_waterfall_block(
         &self,
         first_block_height: u64,
