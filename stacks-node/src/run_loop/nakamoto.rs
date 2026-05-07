@@ -416,6 +416,13 @@ impl RunLoop {
         // setup the termination handler, allow it to error if a prior runloop already set it
         neon::RunLoop::setup_termination_handler(self.should_keep_running.clone(), true);
 
+        // Epoch 4.0 / PoX-5 scaffolding: install the configured aggregate-pubkey
+        // contract id into the process-global before any block-processing thread
+        // can reach `pox_5_compute_and_update_signers`.
+        stacks::chainstate::nakamoto::signer_set::set_pox_5_aggregate_pubkey_contract(
+            self.config.node.pox_5_aggregate_pubkey_contract.clone(),
+        );
+
         let burnchain_result = neon::RunLoop::instantiate_burnchain_state(
             &self.config,
             self.should_keep_running.clone(),

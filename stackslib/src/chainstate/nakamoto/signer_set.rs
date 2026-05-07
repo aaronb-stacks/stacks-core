@@ -13,16 +13,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-#[cfg(any(test, feature = "testing"))]
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 
 use clarity::vm::events::StacksTransactionEvent;
 use clarity::vm::types::{
     PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, TupleData,
 };
 use clarity::vm::{ClarityName, SymbolicExpression, Value};
+use stacks_common::address::AddressHashMode;
 use stacks_common::types::chainstate::{StacksAddress, StacksBlockId};
 use stacks_common::types::StacksEpochId;
 use stacks_common::util::hash::{to_hex, Hash160};
@@ -44,13 +43,6 @@ use crate::clarity_vm::clarity::ClarityTransactionConnection;
 use crate::util_lib::boot;
 use crate::util_lib::boot::boot_code_id;
 
-/// Test-only override: when set, `pox_5_compute_and_update_signers` uses this
-/// `PoxAddress` as the sBTC recipient for the constructed `WaterfallCycleSet`
-/// instead of deriving one from PoX-5 state.
-#[cfg(any(test, feature = "testing"))]
-pub static TEST_WATERFALL_SBTC_ADDRESS_OVERRIDE: LazyLock<TestFlag<PoxAddress>> =
-    LazyLock::new(TestFlag::default);
-
 /// Test-only override: when set, `pox_5_compute_and_update_signers` substitutes
 /// these `(signer_key, amount_ustx)` pairs in place of what the (placeholder)
 /// PoX-5 contract body would produce for the given reward cycle. The pairs are
@@ -69,13 +61,24 @@ pub static TEST_WATERFALL_SIGNER_SET_OVERRIDE: LazyLock<
 #[cfg(any(test, feature = "testing"))]
 pub static TEST_FORCE_POX_5_ACTIVE: LazyLock<TestFlag<bool>> = LazyLock::new(TestFlag::default);
 
-#[cfg(any(test, feature = "testing"))]
-fn waterfall_sbtc_address_override() -> Option<PoxAddress> {
-    TEST_WATERFALL_SBTC_ADDRESS_OVERRIDE.get_opt()
+/// Epoch 4.0 / PoX-5 scaffolding: contract whose read-only
+/// `get-current-aggregate-pubkey` returns the `(buff 33)` used to derive the
+/// per-cycle sBTC waterfall recipient. Set once at node startup from
+/// `NodeConfig::pox_5_aggregate_pubkey_contract`; read by
+/// `pox_5_compute_and_update_signers` from miner, coordinator, and
+/// proposal-validation paths alike. Goes away when PoX-5 routing is wired and
+/// the aggregate pubkey lives on-chain.
+static POX_5_AGGREGATE_PUBKEY_CONTRACT: LazyLock<Mutex<Option<QualifiedContractIdentifier>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+/// Set the configured PoX-5 aggregate-pubkey contract id. Call once during
+/// node startup from the run-loop, with the value parsed out of `NodeConfig`.
+pub fn set_pox_5_aggregate_pubkey_contract(contract_id: Option<QualifiedContractIdentifier>) {
+    *POX_5_AGGREGATE_PUBKEY_CONTRACT.lock().unwrap() = contract_id;
 }
-#[cfg(not(any(test, feature = "testing")))]
-fn waterfall_sbtc_address_override() -> Option<PoxAddress> {
-    None
+
+fn pox_5_aggregate_pubkey_contract() -> Option<QualifiedContractIdentifier> {
+    POX_5_AGGREGATE_PUBKEY_CONTRACT.lock().unwrap().clone()
 }
 
 #[cfg(any(test, feature = "testing"))]
@@ -693,9 +696,37 @@ impl NakamotoSigners {
         // if we want to "write-back" any state to PoX-5 (e.g., computed weights)
         //  we should do it here
 
-        // TODO: compute the actual sBTC address for this cycle
-        let sbtc_address = waterfall_sbtc_address_override()
-            .unwrap_or_else(|| PoxAddress::standard_burn_address(is_mainnet));
+        let sbtc_address = if let Some(contract_id) = pox_5_aggregate_pubkey_contract() {
+            // Scaffolding: derive the sBTC waterfall recipient as a P2PKH of the
+            // aggregate signer pubkey returned by the configured contract. The
+            // contract id is operator-set; this entire branch goes away once
+            // PoX-5 routing is wired and the aggregate pubkey lives on-chain.
+            let pubkey_buff = clarity
+                .eval_method_read_only(&contract_id, "get-current-aggregate-pubkey", &[])?
+                .expect_buff(33)
+                .map_err(|_| {
+                    ChainstateError::Expects(
+                        "get-current-aggregate-pubkey did not return a buffer of <= 33 bytes"
+                            .into(),
+                    )
+                })?;
+            if pubkey_buff.len() != 33 {
+                return Err(ChainstateError::Expects(format!(
+                    "get-current-aggregate-pubkey returned {} bytes; expected exactly 33 (compressed secp256k1)",
+                    pubkey_buff.len()
+                )));
+            }
+            let version = if is_mainnet {
+                AddressHashMode::SerializeP2PKH.to_version_mainnet()
+            } else {
+                AddressHashMode::SerializeP2PKH.to_version_testnet()
+            };
+            let stacks_addr = StacksAddress::new(version, Hash160::from_data(&pubkey_buff))
+                .map_err(|_| ChainstateError::Expects("invalid P2PKH version byte".into()))?;
+            PoxAddress::Standard(stacks_addr, Some(AddressHashMode::SerializeP2PKH))
+        } else {
+            PoxAddress::standard_burn_address(is_mainnet)
+        };
 
         Ok(SignerCalculation {
             reward_set: RewardSet::Waterfall(WaterfallCycleSet {
