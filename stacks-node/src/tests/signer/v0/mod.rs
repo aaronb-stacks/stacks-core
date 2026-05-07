@@ -1058,6 +1058,15 @@ impl MultipleMinerTest {
         );
     }
 
+    /// The (auto-generated) signer Stacks private keys held by the underlying
+    /// `SignerTest`. Tests that need to seed test-side fixtures (e.g.,
+    /// `TEST_WATERFALL_SIGNER_SET_OVERRIDE`) with the same pubkeys the
+    /// running signers actually have should pull them from here rather than
+    /// reproducing SignerTest's auto-generation seed format.
+    pub fn signer_stacks_private_keys(&self) -> &[StacksPrivateKey] {
+        &self.signer_test.signer_stacks_private_keys
+    }
+
     /// Returns a tuple of the node 1 and node 2 miner private keys respectively
     pub fn get_miner_private_keys(&self) -> (StacksPrivateKey, StacksPrivateKey) {
         (
@@ -1510,12 +1519,12 @@ impl MultipleMinerTest {
                 && node_2_info.stacks_tip_consensus_hash == target_consensus_hash)
         })?;
 
-        let info = get_chain_info(&self.signer_test.running_nodes.conf);
-        let stacks_tip_height = info.stacks_tip_height;
-
         // 2. Both miners must have submitted a block-commit at the current
-        //    burn height pointing at the current stacks tip. With the next
-        //    BTC block, sortition will see both samples in the distribution.
+        //    burn height whose parent tenure id is the current sortition's
+        //    consensus hash (i.e., the commit builds on the latest tenure).
+        //    With the next BTC block, sortition will see both samples in the
+        //    burn distribution and no miner will be mid-flight on a stale
+        //    tenure-extend.
         wait_for(timeout_secs, || {
             let m1 = &self.signer_test.running_nodes.counters;
             let m2 = &self.rl2_counters;
