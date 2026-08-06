@@ -83,9 +83,11 @@ use stackslib::chainstate::burn::{BlockSnapshot, ConsensusHash};
 use stackslib::chainstate::coordinator::{OnChainRewardSetProvider, get_reward_cycle_info};
 use stackslib::chainstate::nakamoto::miner::NakamotoBlockBuilder;
 use stackslib::chainstate::nakamoto::shadow::{process_shadow_block, shadow_chainstate_repair};
-use stackslib::chainstate::nakamoto::signer_set::{NakamotoSigners, Pox5ReadOnlyEval};
+use stackslib::chainstate::nakamoto::signer_set::{
+    NakamotoSigners, Pox5ReadOnlyEval, RawPox5Entry,
+};
 use stackslib::chainstate::nakamoto::{NakamotoBlock, NakamotoChainState};
-use stackslib::chainstate::stacks::boot::POX_5_NAME;
+use stackslib::chainstate::stacks::boot::{POX_5_NAME, WaterfallCycleSet};
 use stackslib::chainstate::stacks::db::{StacksBlockHeaderTypes, StacksChainState};
 use stackslib::chainstate::stacks::index::marf::{MARF, MARFOpenOpts, MarfConnection};
 use stackslib::chainstate::stacks::{
@@ -314,6 +316,48 @@ struct RpcPox5Eval {
     sender: String,
     /// Stacks chain tip to evaluate against (sent as `?tip=`).
     tip: StacksBlockId,
+    /// Minimum spacing between successive requests, to stay under the host's
+    /// rate limit.
+    min_interval: Duration,
+    /// Max retries on HTTP 429 / 5xx / transport errors before giving up.
+    max_retries: u32,
+    /// When the last request was issued (for throttling); `None` until the
+    /// first request.
+    last_request: Option<Instant>,
+}
+
+/// Exponential backoff for retry `attempt` (0-based): 0.5s, 1s, 2s, ... capped
+/// at 30s.
+fn rpc_backoff(attempt: u32) -> Duration {
+    let ms = 500u64.saturating_mul(1u64 << attempt.min(6)).min(30_000);
+    Duration::from_millis(ms)
+}
+
+/// Parse a `Retry-After` header expressed as an integer number of seconds.
+/// (The HTTP-date form is not handled; callers fall back to backoff.)
+fn retry_after_secs(resp: &reqwest::blocking::Response) -> Option<Duration> {
+    let secs = resp
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()?;
+    Some(Duration::from_secs(secs))
+}
+
+impl RpcPox5Eval {
+    /// Sleep as needed so that requests are spaced at least `min_interval` apart.
+    fn throttle(&mut self) {
+        if let Some(last) = self.last_request {
+            let elapsed = last.elapsed();
+            if elapsed < self.min_interval {
+                std::thread::sleep(self.min_interval - elapsed);
+            }
+        }
+        self.last_request = Some(Instant::now());
+    }
 }
 
 impl Pox5ReadOnlyEval for RpcPox5Eval {
@@ -339,15 +383,57 @@ impl Pox5ReadOnlyEval for RpcPox5Eval {
         );
         let body = json!({ "sender": self.sender, "arguments": hex_args }).to_string();
 
-        let resp = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .body(body)
-            .send()
-            .map_err(|e| {
-                ChainstateError::Expects(format!("call-read request to {url} failed: {e}"))
-            })?;
+        // Retry on rate limiting (429), server errors (5xx), and transport
+        // failures, spacing each attempt by at least `min_interval`.
+        let mut attempt = 0u32;
+        let resp = loop {
+            self.throttle();
+            match self
+                .client
+                .post(&url)
+                .header("Content-Type", "application/json")
+                .body(body.clone())
+                .send()
+            {
+                Ok(resp) => {
+                    let status = resp.status();
+                    let retryable = status.as_u16() == 429 || status.is_server_error();
+                    if retryable && attempt < self.max_retries {
+                        let wait = retry_after_secs(&resp).unwrap_or_else(|| rpc_backoff(attempt));
+                        eprintln!(
+                            "call-read {function}: HTTP {} (attempt {}/{}), retrying in {:?}...",
+                            status,
+                            attempt + 1,
+                            self.max_retries,
+                            wait
+                        );
+                        std::thread::sleep(wait);
+                        attempt += 1;
+                        continue;
+                    }
+                    break resp;
+                }
+                Err(e) => {
+                    if attempt < self.max_retries {
+                        let wait = rpc_backoff(attempt);
+                        eprintln!(
+                            "call-read {function}: request error ({e}) (attempt {}/{}), retrying in {:?}...",
+                            attempt + 1,
+                            self.max_retries,
+                            wait
+                        );
+                        std::thread::sleep(wait);
+                        attempt += 1;
+                        continue;
+                    }
+                    return Err(ChainstateError::Expects(format!(
+                        "call-read request to {url} failed after {} retries: {e}",
+                        self.max_retries
+                    )));
+                }
+            }
+        };
+
         if !resp.status().is_success() {
             return Err(ChainstateError::Expects(format!(
                 "call-read {function} returned HTTP {}",
@@ -374,6 +460,57 @@ impl Pox5ReadOnlyEval for RpcPox5Eval {
             ChainstateError::Expects(format!("call-read {function}: bad result hex: {e}"))
         })
     }
+}
+
+/// Build the JSON output for a computed PoX-5 signer set, attaching the
+/// signer-manager contract principal(s) to each signing key.
+///
+/// `raw_entries` are the per-cycle linked-list entries (one per manager
+/// contract); `id_field`/`id_value` label the block/tip the set was computed
+/// as-of.
+fn pox5_signer_set_json(
+    id_field: &str,
+    id_value: String,
+    reward_cycle: u64,
+    waterfall: &WaterfallCycleSet,
+    raw_entries: &[RawPox5Entry],
+) -> serde_json::Value {
+    // signing key (hex) -> manager contract principal(s). Normally one per key;
+    // a list covers the rare case of two managers registering the same key
+    // (which the reward set aggregates together).
+    let mut managers: HashMap<String, Vec<String>> = HashMap::new();
+    for entry in raw_entries {
+        managers
+            .entry(to_hex(&entry.signer_key))
+            .or_default()
+            .push(format!("{}", entry.signer));
+    }
+
+    let signers: Vec<serde_json::Value> = waterfall
+        .signers
+        .iter()
+        .map(|s| {
+            let key_hex = to_hex(&s.signing_key);
+            let signer_managers = managers.get(&key_hex).cloned().unwrap_or_default();
+            json!({
+                "signing_key": key_hex,
+                "stacked_amt": s.stacked_amt,
+                "weight": s.weight,
+                "signer_managers": signer_managers,
+            })
+        })
+        .collect();
+
+    let mut out = json!({
+        "reward_cycle": reward_cycle,
+        "sbtc_address": waterfall.sbtc_address,
+        "pox_ustx_threshold": waterfall.pox_ustx_threshold,
+        "signers": signers,
+    });
+    out.as_object_mut()
+        .expect("json object")
+        .insert(id_field.to_string(), json!(id_value));
+    out
 }
 
 fn open_nakamoto_chainstate_dbs(
@@ -844,17 +981,25 @@ fn main() {
             )
             .expect("Failed to compute PoX-5 signer set");
 
+            // Second read (same ephemeral tx) to map signing keys back to their
+            // signer-manager contracts.
+            let raw_entries =
+                NakamotoSigners::recompute_pox_5_signer_managers(&mut clarity_tx, target_cycle)
+                    .expect("Failed to read PoX-5 signer-manager entries");
+
             // Discard the throwaway ephemeral block.
             clarity_tx.rollback_block();
 
             let waterfall = reward_set
                 .as_waterfall()
                 .expect("PoX-5 calculation must yield a Waterfall reward set");
-            let out = json!({
-                "block_id": block_id.to_hex(),
-                "reward_cycle": target_cycle,
-                "reward_set": waterfall,
-            });
+            let out = pox5_signer_set_json(
+                "block_id",
+                block_id.to_hex(),
+                target_cycle,
+                waterfall,
+                &raw_entries,
+            );
             println!(
                 "{}",
                 serde_json::to_string_pretty(&out).expect("Failed to serialize reward set")
@@ -868,6 +1013,8 @@ fn main() {
             tip,
             reward_cycle,
             sender,
+            min_interval_ms,
+            max_retries,
         } => {
             let (mainnet, _chain_id, pox_constants, _dirname) = nakamoto_network_settings(&network);
             let tip = StacksBlockId::from_hex(&tip)
@@ -889,6 +1036,9 @@ fn main() {
                 http_origin: host.trim_end_matches('/').to_string(),
                 sender,
                 tip,
+                min_interval: Duration::from_millis(min_interval_ms),
+                max_retries,
+                last_request: None,
             };
 
             let reward_set = NakamotoSigners::pox_5_compute_signer_set(
@@ -900,14 +1050,20 @@ fn main() {
             )
             .expect("Failed to compute PoX-5 signer set over RPC");
 
+            // Second walk of the linked list to map signing keys back to their
+            // signer-manager contracts.
+            let raw_entries = NakamotoSigners::pox_5_raw_signer_entries(
+                &mut eval,
+                mainnet,
+                reward_cycle,
+                POX_5_NAME,
+            )
+            .expect("Failed to read PoX-5 signer-manager entries over RPC");
+
             let waterfall = reward_set
                 .as_waterfall()
                 .expect("PoX-5 calculation must yield a Waterfall reward set");
-            let out = json!({
-                "tip": tip_hex,
-                "reward_cycle": reward_cycle,
-                "reward_set": waterfall,
-            });
+            let out = pox5_signer_set_json("tip", tip_hex, reward_cycle, waterfall, &raw_entries);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&out).expect("Failed to serialize reward set")

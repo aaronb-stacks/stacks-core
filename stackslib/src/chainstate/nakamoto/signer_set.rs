@@ -337,8 +337,13 @@ impl RawRewardSetEntry {
 /// as produced by walking pox-5's per-cycle signer-set linked list.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct RawPox5Entry {
-    pub(crate) amount_ustx: u128,
-    pub(crate) signer_key: [u8; SIGNERS_PK_LEN],
+    pub amount_ustx: u128,
+    pub signer_key: [u8; SIGNERS_PK_LEN],
+    /// The pox-5 "signer" principal from the per-cycle linked list -- i.e. the
+    /// per-signer-manager contract that registered this signer. Not used by the
+    /// signer-set apportionment (which aggregates purely by `signer_key`); kept
+    /// so callers can map each signing key back to its manager contract.
+    pub signer: PrincipalData,
 }
 
 /// Abstraction over "evaluate a read-only method of a boot contract and return
@@ -487,6 +492,7 @@ impl<E: Pox5ReadOnlyEval> StakeEntryIteratorPox5<'_, E> {
         Ok(Some(RawPox5Entry {
             amount_ustx,
             signer_key,
+            signer: cur_signer,
         }))
     }
 }
@@ -842,6 +848,45 @@ impl NakamotoSigners {
         }))
     }
 
+    /// Walk the pox-5 per-cycle signer linked list and return the raw
+    /// `(signer-manager contract, signing key, delegated uSTX)` entries.
+    ///
+    /// This is the same traversal the signer-set calculation performs (via
+    /// [`Self::pox_5_stake_entries`]), applying the same per-entry error
+    /// discipline: malformed entries are skipped, and an abort-triggering error
+    /// fails the whole read. It exists so offline tooling can map each signing
+    /// key back to the manager contract(s) that registered it without
+    /// re-implementing the linked-list walk.
+    pub fn pox_5_raw_signer_entries<E: Pox5ReadOnlyEval>(
+        eval: &mut E,
+        is_mainnet: bool,
+        reward_cycle: u64,
+        pox_contract: &str,
+    ) -> Result<Vec<RawPox5Entry>, ChainstateError> {
+        let entries = Self::pox_5_stake_entries(eval, is_mainnet, reward_cycle, pox_contract)?;
+        let mut collected = vec![];
+        for entry_res in entries {
+            match entry_res {
+                Ok(entry) => collected.push(entry),
+                Err(PoxEntryParsingError::Skip(err_str)) => {
+                    warn!(
+                        "Error while iterating PoX-5 entries, impacting a single entry. Dropping entry";
+                        "error" => err_str
+                    );
+                    continue;
+                }
+                Err(PoxEntryParsingError::Abort(err_str)) => {
+                    error!(
+                        "Abort-triggering error while iterating PoX-5 entries";
+                        "error" => err_str
+                    );
+                    return Err(ChainstateError::PoxNoRewardCycle);
+                }
+            }
+        }
+        Ok(collected)
+    }
+
     /// For PoX-5, compute the reward set for the next reward cycle,
     /// store it, and write it to the .signers contract.
     ///
@@ -907,6 +952,20 @@ impl NakamotoSigners {
                 POX_5_NAME,
                 is_mainnet,
             )
+        })
+    }
+
+    /// Collect the raw pox-5 signer entries (signer-manager contract, signing
+    /// key, delegated uSTX) for `reward_cycle` from the state visible in
+    /// `clarity_tx`. Companion to [`Self::recompute_pox_5_signer_set`] for
+    /// offline inspection, used to map signing keys back to manager contracts.
+    pub fn recompute_pox_5_signer_managers(
+        clarity_tx: &mut ClarityTx,
+        reward_cycle: u64,
+    ) -> Result<Vec<RawPox5Entry>, ChainstateError> {
+        let is_mainnet = clarity_tx.config.mainnet;
+        clarity_tx.connection().as_free_transaction(|clarity| {
+            Self::pox_5_raw_signer_entries(clarity, is_mainnet, reward_cycle, POX_5_NAME)
         })
     }
 

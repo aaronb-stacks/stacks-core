@@ -16,6 +16,7 @@
 use std::collections::HashMap;
 use std::ops::Range;
 
+use clarity::vm::types::{PrincipalData, StandardPrincipalData};
 use pinny::tag;
 use proptest::array::uniform32;
 use proptest::prelude::{any, prop, proptest, Strategy, TestCaseError};
@@ -28,6 +29,12 @@ use crate::chainstate::nakamoto::signer_set::{
 use crate::chainstate::stacks::boot::SIGNERS_PK_LEN;
 use crate::chainstate::stacks::Error as ChainstateError;
 
+/// A placeholder signer-manager principal for tests. `pox_5_make_signer_set`
+/// ignores `RawPox5Entry::signer`, so a fixed value is fine everywhere.
+fn dummy_signer() -> PrincipalData {
+    PrincipalData::Standard(StandardPrincipalData::transient())
+}
+
 /// Generate a `RawPox5Entry` with a uniformly random 33-byte signer key
 /// and an `amount_ustx` drawn from `amount_range`.
 fn raw_pox5_entry_strategy(amount_range: Range<u128>) -> impl Strategy<Value = RawPox5Entry> {
@@ -38,6 +45,7 @@ fn raw_pox5_entry_strategy(amount_range: Range<u128>) -> impl Strategy<Value = R
         RawPox5Entry {
             amount_ustx,
             signer_key,
+            signer: dummy_signer(),
         }
     })
 }
@@ -202,7 +210,11 @@ proptest! {
         let _ = entries.try_reserve(to_duplicate.len());
         for (idx, amount_ustx) in to_duplicate.into_iter() {
             let signer_key = entries[idx % entries.len()].signer_key;
-            entries.push(RawPox5Entry { amount_ustx, signer_key });
+            entries.push(RawPox5Entry {
+                amount_ustx,
+                signer_key,
+                signer: dummy_signer(),
+            });
         }
 
         check_make_signer_set(pox_constants, entries)?;
@@ -221,6 +233,7 @@ fn single_entry() {
     let entries = vec![RawPox5Entry {
         signer_key: signer_key(0x01),
         amount_ustx: 1_000_000,
+        signer: dummy_signer(),
     }];
     let mut iter = entries.into_iter().map(Ok);
     let Pox5SignerSetOutput {
@@ -246,10 +259,12 @@ fn duplicate_signer_keys_are_aggregated() {
         RawPox5Entry {
             signer_key: key,
             amount_ustx: 600_000,
+            signer: dummy_signer(),
         },
         RawPox5Entry {
             signer_key: key,
             amount_ustx: 400_000,
+            signer: dummy_signer(),
         },
     ];
     let mut iter = entries.into_iter().map(Ok);
@@ -272,11 +287,13 @@ fn weight_zero_entries_are_filtered() {
         .map(|i| RawPox5Entry {
             signer_key: signer_key(i),
             amount_ustx: 10_000_000,
+            signer: dummy_signer(),
         })
         .collect();
     entries.push(RawPox5Entry {
         signer_key: dust,
         amount_ustx: 1,
+        signer: dummy_signer(),
     });
     let mut iter = entries.into_iter().map(Ok);
     let Pox5SignerSetOutput { signer_set, .. } =
@@ -308,6 +325,7 @@ fn equal_stakes_exceeding_reward_slots_are_not_all_zeroed() {
         .map(|i| RawPox5Entry {
             signer_key: signer_key(i),
             amount_ustx: stake,
+            signer: dummy_signer(),
         })
         .collect();
     let mut iter = entries.into_iter().map(Ok);
@@ -341,26 +359,32 @@ fn equivalent_inputs_are_permutation_invariant() {
         RawPox5Entry {
             signer_key: signer_key(0x03),
             amount_ustx: 17_000_000,
+            signer: dummy_signer(),
         },
         RawPox5Entry {
             signer_key: signer_key(0x01),
             amount_ustx: 11_000_000,
+            signer: dummy_signer(),
         },
         RawPox5Entry {
             signer_key: signer_key(0x02),
             amount_ustx: 5_000_000,
+            signer: dummy_signer(),
         },
         RawPox5Entry {
             signer_key: signer_key(0x01),
             amount_ustx: 13_000_000,
+            signer: dummy_signer(),
         },
         RawPox5Entry {
             signer_key: signer_key(0x04),
             amount_ustx: 1,
+            signer: dummy_signer(),
         },
         RawPox5Entry {
             signer_key: signer_key(0x02),
             amount_ustx: 19_000_000,
+            signer: dummy_signer(),
         },
     ];
 
@@ -408,11 +432,13 @@ fn skip_errors_drop_entry_but_continue() {
         Ok(RawPox5Entry {
             signer_key: key_a,
             amount_ustx: 1_000_000,
+            signer: dummy_signer(),
         }),
         Err(PoxEntryParsingError::Skip("synthetic skip".into())),
         Ok(RawPox5Entry {
             signer_key: key_b,
             amount_ustx: 1_000_000,
+            signer: dummy_signer(),
         }),
     ];
     let mut iter = entries.into_iter();
@@ -429,6 +455,7 @@ fn abort_error_propagates() {
         Ok(RawPox5Entry {
             signer_key: signer_key(0x01),
             amount_ustx: 1_000_000,
+            signer: dummy_signer(),
         }),
         Err(PoxEntryParsingError::Abort("synthetic abort".into())),
     ];

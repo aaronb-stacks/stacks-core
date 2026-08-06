@@ -492,6 +492,14 @@ pub enum Command {
         /// Optional `sender` principal for call-read (defaults to the boot address)
         #[arg(long, value_name = "PRINCIPAL")]
         sender: Option<String>,
+
+        /// Minimum milliseconds between RPC requests (rate-limit throttle)
+        #[arg(long, value_name = "MS", default_value_t = 120)]
+        min_interval_ms: u64,
+
+        /// Max retries per request on HTTP 429 / 5xx / transport errors
+        #[arg(long, value_name = "N", default_value_t = 6)]
+        max_retries: u32,
     },
 
     /// Get block inventory (2100 headers)
