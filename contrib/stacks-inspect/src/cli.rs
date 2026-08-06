@@ -443,6 +443,57 @@ pub enum Command {
         block_hash: String,
     },
 
+    /// Recompute the PoX-5 signer set as of the given Stacks block.
+    ///
+    /// Re-runs the PoX-5 signer-set calculation against the pox-5 contract state
+    /// visible at BLOCK_ID, for the next reward cycle after that block's
+    /// burn-height cycle, and prints the result as JSON.
+    #[command(name = "compute-pox5-signer-set")]
+    ComputePox5SignerSet {
+        /// Path to the node working directory (contains
+        /// <network>/chainstate and <network>/burnchain/sortition)
+        #[arg(value_name = "CHAIN_STATE_DIR")]
+        chain_state_dir: String,
+
+        /// Network: "mainnet", "krypton", or "naka3"
+        #[arg(value_name = "NETWORK")]
+        network: String,
+
+        /// Stacks block index hash (StacksBlockId, hex) to evaluate state as-of
+        #[arg(value_name = "BLOCK_ID")]
+        block_id: String,
+    },
+
+    /// Recompute the PoX-5 signer set over RPC against an arbitrary public node.
+    ///
+    /// Runs the PoX-5 signer-set calculation for REWARD_CYCLE by issuing
+    /// `/v2/contracts/call-read` requests to HOST, evaluated at the given chain
+    /// TIP, and prints the result as JSON. Works against any node that serves the
+    /// (ungated) call-read endpoint and still retains queryable state at TIP.
+    #[command(name = "compute-pox5-signer-set-rpc")]
+    ComputePox5SignerSetRpc {
+        /// Base URL of the node's RPC (e.g. https://api.mainnet.hiro.so)
+        #[arg(value_name = "HOST")]
+        host: String,
+
+        /// Network: "mainnet", "krypton", or "naka3" (selects the mainnet flag
+        /// and PoX constants used for apportionment)
+        #[arg(value_name = "NETWORK")]
+        network: String,
+
+        /// Stacks block index hash (StacksBlockId, hex) to evaluate state as-of
+        #[arg(value_name = "TIP")]
+        tip: String,
+
+        /// Reward cycle to compute the signer set for
+        #[arg(value_name = "REWARD_CYCLE")]
+        reward_cycle: u64,
+
+        /// Optional `sender` principal for call-read (defaults to the boot address)
+        #[arg(long, value_name = "PRINCIPAL")]
+        sender: Option<String>,
+    },
+
     /// Get block inventory (2100 headers)
     #[command(name = "get-block-inventory")]
     GetBlockInventory {

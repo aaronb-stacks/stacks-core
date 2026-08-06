@@ -20,6 +20,8 @@ use clap::Parser;
 use clarity::consts::CHAIN_ID_MAINNET;
 use clarity::types::StacksEpochId;
 use clarity::types::chainstate::StacksPrivateKey;
+use clarity::vm::Value as ClarityValue;
+use clarity::vm::types::QualifiedContractIdentifier;
 use clarity_cli::{DEFAULT_CLI_EPOCH, read_file_or_stdin, read_file_or_stdin_bytes, vm_execute};
 use stacks_common::alloc_tracker::TrackingAllocator;
 use stacks_inspect::cli::{Cli, Command};
@@ -81,10 +83,15 @@ use stackslib::chainstate::burn::{BlockSnapshot, ConsensusHash};
 use stackslib::chainstate::coordinator::{OnChainRewardSetProvider, get_reward_cycle_info};
 use stackslib::chainstate::nakamoto::miner::NakamotoBlockBuilder;
 use stackslib::chainstate::nakamoto::shadow::{process_shadow_block, shadow_chainstate_repair};
+use stackslib::chainstate::nakamoto::signer_set::{NakamotoSigners, Pox5ReadOnlyEval};
 use stackslib::chainstate::nakamoto::{NakamotoBlock, NakamotoChainState};
-use stackslib::chainstate::stacks::StacksBlockHeader;
+use stackslib::chainstate::stacks::boot::POX_5_NAME;
 use stackslib::chainstate::stacks::db::{StacksBlockHeaderTypes, StacksChainState};
 use stackslib::chainstate::stacks::index::marf::{MARF, MARFOpenOpts, MarfConnection};
+use stackslib::chainstate::stacks::{
+    Error as ChainstateError, MINER_BLOCK_CONSENSUS_HASH, MINER_BLOCK_HEADER_HASH,
+    StacksBlockHeader,
+};
 use stackslib::clarity::vm::ClarityVersion;
 use stackslib::clarity::vm::costs::ExecutionCost;
 use stackslib::core::MemPoolDB;
@@ -250,22 +257,22 @@ impl P2PSession {
     }
 }
 
-fn open_nakamoto_chainstate_dbs(
-    chainstate_dir: &str,
-    network: &str,
-) -> (SortitionDB, StacksChainState) {
-    let (mainnet, chain_id, pox_constants, dirname) = match network {
+/// Resolve a Nakamoto network name to its `(is_mainnet, chain_id, pox_constants,
+/// chainstate_dirname)` settings. Shared by the local chainstate opener and the
+/// RPC-backed signer-set command.
+fn nakamoto_network_settings(network: &str) -> (bool, u32, PoxConstants, &'static str) {
+    match network {
         "mainnet" => (
             true,
             CHAIN_ID_MAINNET,
             PoxConstants::mainnet_default(),
-            network,
+            "mainnet",
         ),
         "krypton" => (
             false,
             0x80000100,
             PoxConstants::nakamoto_testnet_default(),
-            network,
+            "krypton",
         ),
         "naka3" => (
             false,
@@ -289,7 +296,91 @@ fn open_nakamoto_chainstate_dbs(
         _ => {
             panic!("Unrecognized network name '{network}'");
         }
-    };
+    }
+}
+
+/// A [`Pox5ReadOnlyEval`] backed by a remote node's `/v2/contracts/call-read`
+/// RPC endpoint, evaluated at a fixed chain tip.
+///
+/// Used by the RPC variant of the PoX-5 signer-set command so the calculation
+/// can run against an arbitrary public host without local chainstate. The node
+/// only needs to serve the (ungated) call-read endpoint and still retain
+/// queryable state at `tip`.
+struct RpcPox5Eval {
+    client: reqwest::blocking::Client,
+    /// Base RPC URL with no trailing slash (e.g. "https://api.mainnet.hiro.so").
+    http_origin: String,
+    /// `sender` principal string sent with each call-read request.
+    sender: String,
+    /// Stacks chain tip to evaluate against (sent as `?tip=`).
+    tip: StacksBlockId,
+}
+
+impl Pox5ReadOnlyEval for RpcPox5Eval {
+    fn call_read_only(
+        &mut self,
+        contract: &QualifiedContractIdentifier,
+        function: &str,
+        args: &[ClarityValue],
+    ) -> Result<ClarityValue, ChainstateError> {
+        // Arguments are consensus-hex-serialized Clarity values, as the endpoint
+        // expects (matching `stacks-signer`'s client).
+        let hex_args = args
+            .iter()
+            .map(|v| v.serialize_to_hex())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                ChainstateError::Expects(format!("Failed to serialize call-read arg: {e}"))
+            })?;
+
+        let url = format!(
+            "{}/v2/contracts/call-read/{}/{}/{}?tip={}",
+            self.http_origin, contract.issuer, contract.name, function, self.tip
+        );
+        let body = json!({ "sender": self.sender, "arguments": hex_args }).to_string();
+
+        let resp = self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .body(body)
+            .send()
+            .map_err(|e| {
+                ChainstateError::Expects(format!("call-read request to {url} failed: {e}"))
+            })?;
+        if !resp.status().is_success() {
+            return Err(ChainstateError::Expects(format!(
+                "call-read {function} returned HTTP {}",
+                resp.status()
+            )));
+        }
+
+        let json: serde_json::Value = resp.json().map_err(|e| {
+            ChainstateError::Expects(format!("call-read {function}: invalid JSON: {e}"))
+        })?;
+        if json.get("okay").and_then(|v| v.as_bool()) != Some(true) {
+            let cause = json
+                .get("cause")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            return Err(ChainstateError::Expects(format!(
+                "call-read {function} not okay: {cause}"
+            )));
+        }
+        let hex = json.get("result").and_then(|v| v.as_str()).ok_or_else(|| {
+            ChainstateError::Expects(format!("call-read {function} missing result"))
+        })?;
+        ClarityValue::try_deserialize_hex_untyped(hex).map_err(|e| {
+            ChainstateError::Expects(format!("call-read {function}: bad result hex: {e}"))
+        })
+    }
+}
+
+fn open_nakamoto_chainstate_dbs(
+    chainstate_dir: &str,
+    network: &str,
+) -> (SortitionDB, StacksChainState) {
+    let (mainnet, chain_id, pox_constants, dirname) = nakamoto_network_settings(network);
 
     let chain_state_path = format!("{chainstate_dir}/{dirname}/chainstate/");
     let sort_db_path = format!("{chainstate_dir}/{dirname}/burnchain/sortition/");
@@ -694,6 +785,136 @@ fn main() {
         }
 
         // Shadow Block Commands
+        Command::ComputePox5SignerSet {
+            chain_state_dir,
+            network,
+            block_id,
+        } => {
+            let block_id = StacksBlockId::from_hex(&block_id)
+                .unwrap_or_else(|_| panic!("Not a valid StacksBlockId: {block_id}"));
+
+            let (sort_db, mut chain_state) =
+                open_nakamoto_chainstate_dbs(&chain_state_dir, &network);
+
+            // Resolve the block header for its consensus hash, block hash, and
+            // burn height. This is the block whose Clarity state we evaluate as-of.
+            let header = NakamotoChainState::get_block_header(chain_state.db(), &block_id)
+                .expect("Failed to query chainstate for block header")
+                .unwrap_or_else(|| panic!("No such block: {block_id}"));
+
+            let parent_consensus_hash = header.consensus_hash;
+            let parent_block_hash = header.anchored_header.block_hash();
+            let burn_tip_height = header.burn_header_height;
+
+            // The signer set is computed for the *next* reward cycle after the
+            // one containing this block's burn height (mirroring the prepare-phase
+            // update, which computes the upcoming cycle's set).
+            let pox_constants = sort_db.pox_constants.clone();
+            let first_block_height = sort_db.first_block_height;
+            let block_cycle = pox_constants
+                .block_height_to_reward_cycle(first_block_height, burn_tip_height.into())
+                .unwrap_or_else(|| {
+                    panic!("Block burn height {burn_tip_height} precedes first burnchain block")
+                });
+            let target_cycle = block_cycle + 1;
+
+            // BurnStateDB handle for Clarity: the canonical burn chain tip is only
+            // used for epoch / burn-height lookups here.
+            let tip = SortitionDB::get_canonical_burn_chain_tip(sort_db.conn())
+                .expect("Failed to load canonical burn chain tip");
+            let burn_dbconn = sort_db.index_handle(&tip.sortition_id);
+
+            // Recompute the set in an *ephemeral* block whose parent is `block_id`,
+            // so nothing is ever persisted. The calculation itself is read-only.
+            let (chainstate_tx, clarity_instance) = chain_state.chainstate_tx_begin();
+            let mut clarity_tx = StacksChainState::chainstate_ephemeral_block_begin(
+                &chainstate_tx,
+                clarity_instance,
+                &burn_dbconn,
+                &parent_consensus_hash,
+                &parent_block_hash,
+                &MINER_BLOCK_CONSENSUS_HASH,
+                &MINER_BLOCK_HEADER_HASH,
+            );
+
+            let reward_set = NakamotoSigners::recompute_pox_5_signer_set(
+                &mut clarity_tx,
+                &pox_constants,
+                target_cycle,
+            )
+            .expect("Failed to compute PoX-5 signer set");
+
+            // Discard the throwaway ephemeral block.
+            clarity_tx.rollback_block();
+
+            let waterfall = reward_set
+                .as_waterfall()
+                .expect("PoX-5 calculation must yield a Waterfall reward set");
+            let out = json!({
+                "block_id": block_id.to_hex(),
+                "reward_cycle": target_cycle,
+                "reward_set": waterfall,
+            });
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&out).expect("Failed to serialize reward set")
+            );
+            process::exit(0);
+        }
+
+        Command::ComputePox5SignerSetRpc {
+            host,
+            network,
+            tip,
+            reward_cycle,
+            sender,
+        } => {
+            let (mainnet, _chain_id, pox_constants, _dirname) = nakamoto_network_settings(&network);
+            let tip = StacksBlockId::from_hex(&tip)
+                .unwrap_or_else(|_| panic!("Not a valid StacksBlockId: {tip}"));
+
+            // For a read-only call the sender is not consensus-relevant; default
+            // to the network's boot address.
+            let sender = sender.unwrap_or_else(|| {
+                if mainnet {
+                    "SP000000000000000000002Q6VF78".to_string()
+                } else {
+                    "ST000000000000000000002AMW42H".to_string()
+                }
+            });
+
+            let tip_hex = tip.to_hex();
+            let mut eval = RpcPox5Eval {
+                client: reqwest::blocking::Client::new(),
+                http_origin: host.trim_end_matches('/').to_string(),
+                sender,
+                tip,
+            };
+
+            let reward_set = NakamotoSigners::pox_5_compute_signer_set(
+                &mut eval,
+                &pox_constants,
+                reward_cycle,
+                POX_5_NAME,
+                mainnet,
+            )
+            .expect("Failed to compute PoX-5 signer set over RPC");
+
+            let waterfall = reward_set
+                .as_waterfall()
+                .expect("PoX-5 calculation must yield a Waterfall reward set");
+            let out = json!({
+                "tip": tip_hex,
+                "reward_cycle": reward_cycle,
+                "reward_set": waterfall,
+            });
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&out).expect("Failed to serialize reward set")
+            );
+            process::exit(0);
+        }
+
         Command::MakeShadowBlock {
             chainstate_dir,
             network,
