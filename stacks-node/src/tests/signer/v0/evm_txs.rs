@@ -17,11 +17,14 @@
 //! (`EvmPublish` / `EvmContractCall`) against a live nakamoto node with
 //! signers, booted directly into Epoch 3.3 (the EVM activation epoch).
 
-use std::env;
+use std::io::{self, Write};
 use std::time::Duration;
+use std::{env, thread};
 
 use clarity::vm::Value;
 use pinny::tag;
+use stacks::chainstate::stacks::db::evm::abi::encode_call_input;
+use stacks::chainstate::stacks::db::evm::CLARITY_READ_PRECOMPILE;
 use stacks::chainstate::stacks::{
     TransactionEvmContractCall, TransactionEvmPublish, TransactionPayload,
     C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
@@ -30,7 +33,7 @@ use stacks::codec::StacksMessageCodec;
 use stacks::core::test_util::{sign_standard_single_sig_tx, to_addr};
 use stacks::types::chainstate::{StacksAddress, StacksPrivateKey};
 use stacks::types::StacksEpochId;
-use stacks::util::hash::{hex_bytes, Hash160};
+use stacks::util::hash::{hex_bytes, to_hex, Hash160};
 use stacks_signer::v0::SpawnedSigner;
 
 use crate::tests::nakamoto_integrations::{get_tx_result_by_id, get_tx_status_by_id, wait_for};
@@ -300,5 +303,466 @@ fn evm_publish_and_contract_calls() {
         .expect("read receipt disappeared from the observer");
 
     info!("------------------------- Shutdown -------------------------");
+    signer_test.shutdown();
+}
+
+// ===========================================================================
+// Narrated end-to-end demo (`evm_demo`)
+//
+// Same real stack as the test above (bitcoind + signers + miner, Epoch 3.3),
+// but presented as a guided, boxed-panel walkthrough for live demos. It adds
+// the `clarity-read` precompile bridge: an EVM contract reading a value out
+// of a Clarity contract.
+//
+// In a test build the node/signer logger writes to *stdout*, so the demo
+// writes its panels to *stderr* instead. Capturing stdout then gives a clean
+// walkthrough with full logs preserved:  `... 1>node.log`.
+//
+// The EVM bytecode is minimal, hand-assembled bytecode (the same fixtures the
+// unit tests use); the "equivalent Solidity" shown in panels describes what
+// that bytecode does, it is not compiled from it.
+// ===========================================================================
+
+mod demo_ui {
+    use std::io::{self, Write};
+
+    pub const RESET: &str = "\x1b[0m";
+    pub const BOLD: &str = "\x1b[1m";
+    pub const DIM: &str = "\x1b[2m";
+    pub const CYAN: &str = "\x1b[36m";
+    pub const GREEN: &str = "\x1b[32m";
+    pub const YELLOW: &str = "\x1b[33m";
+    pub const MAGENTA: &str = "\x1b[35m";
+    pub const BLUE: &str = "\x1b[34m";
+
+    const WIDTH: usize = 72;
+
+    fn visible_len(s: &str) -> usize {
+        let mut len = 0;
+        let mut esc = false;
+        for ch in s.chars() {
+            if esc {
+                if ch == 'm' {
+                    esc = false;
+                }
+            } else if ch == '\x1b' {
+                esc = true;
+            } else {
+                len += 1;
+            }
+        }
+        len
+    }
+
+    fn pad(s: &str) -> String {
+        let v = visible_len(s);
+        if v >= WIDTH {
+            s.to_string()
+        } else {
+            format!("{s}{}", " ".repeat(WIDTH - v))
+        }
+    }
+
+    pub fn banner() {
+        eprint!("\x1b[2J\x1b[H");
+        let _ = io::stderr().flush();
+        let bar = "=".repeat(WIDTH + 2);
+        eprintln!("{CYAN}{BOLD}+{bar}+{RESET}");
+        for line in [
+            "",
+            "        E V M   o n   S T A C K S   -   live e2e demo",
+            "",
+            "   Real bitcoind + signers + miner, booted to Epoch 3.3.",
+            "   Solidity-style contracts as native Stacks transactions,",
+            "   sharing the MARF, the STX ledger, and one gas meter.",
+            "",
+        ] {
+            eprintln!("{CYAN}{BOLD}|{RESET} {} {CYAN}{BOLD}|{RESET}", pad(line));
+        }
+        eprintln!("{CYAN}{BOLD}+{bar}+{RESET}");
+        eprintln!();
+    }
+
+    pub struct Panel {
+        rows: Vec<String>,
+    }
+
+    pub fn step(n: u32, title: &str) -> Panel {
+        eprintln!("{MAGENTA}{BOLD}+- STEP {n}: {title}{RESET}");
+        Panel { rows: vec![] }
+    }
+
+    impl Panel {
+        pub fn line(&mut self, s: impl AsRef<str>) -> &mut Self {
+            self.rows.push(s.as_ref().to_string());
+            self
+        }
+        pub fn kv(&mut self, key: &str, value: impl AsRef<str>) -> &mut Self {
+            self.rows.push(format!(
+                "{DIM}{key:<14}{RESET}{}",
+                value.as_ref(),
+                key = key
+            ));
+            self
+        }
+        pub fn divider(&mut self) -> &mut Self {
+            self.rows.push(format!("{DIM}{}{RESET}", "-".repeat(WIDTH)));
+            self
+        }
+        pub fn code(&mut self, code: &str, color: &str) -> &mut Self {
+            for l in code.lines() {
+                self.rows
+                    .push(format!("{color}{DIM}|{RESET} {color}{l}{RESET}"));
+            }
+            self
+        }
+        pub fn render(&mut self) {
+            let bar = "-".repeat(WIDTH + 2);
+            eprintln!("{MAGENTA}+{bar}{RESET}");
+            for row in self.rows.drain(..) {
+                eprintln!("{MAGENTA}|{RESET} {} {MAGENTA}|{RESET}", pad(&row));
+            }
+            eprintln!("{MAGENTA}+{bar}+{RESET}");
+        }
+    }
+
+    pub fn ok(msg: &str) {
+        eprintln!("  {GREEN}{BOLD}[ok]{RESET} {msg}");
+    }
+    pub fn info(msg: &str) {
+        eprintln!("  {BLUE}>{RESET} {msg}");
+    }
+
+    /// Pause between steps. Under `podman run -it` this waits for Enter; with
+    /// no TTY it reads EOF and continues (autoplay).
+    pub fn wait(prompt: &str) {
+        eprintln!();
+        eprint!("  {YELLOW}> {prompt}{RESET}");
+        let _ = io::stderr().flush();
+        let mut buf = String::new();
+        let _ = io::stdin().read_line(&mut buf);
+        eprintln!();
+    }
+}
+
+/// A 32-byte big-endian ABI word holding `value` in its low 16 bytes.
+fn demo_word_u128(value: u128) -> Vec<u8> {
+    let mut word = vec![0u8; 32];
+    word[16..32].copy_from_slice(&value.to_be_bytes());
+    word
+}
+
+/// Decode a 32-byte ABI word's low 16 bytes as a u128.
+fn demo_word_to_u128(word: &[u8]) -> u128 {
+    if word.len() < 32 {
+        return 0;
+    }
+    let mut buf = [0u8; 16];
+    buf.copy_from_slice(&word[16..32]);
+    u128::from_be_bytes(buf)
+}
+
+/// Init code for a forwarder EVM contract whose runtime copies all calldata,
+/// `CALL`s `target` with it, and bubbles up the returned/reverted data. Used
+/// to prove an EVM *contract* (not just a top-level tx) can reach the Clarity
+/// precompile.
+fn demo_forwarder_init_code(target: &[u8; 20]) -> Vec<u8> {
+    let mut runtime = vec![0x36, 0x60, 0x00, 0x60, 0x00, 0x37];
+    runtime.extend_from_slice(&[0x60, 0x00, 0x60, 0x00, 0x36, 0x60, 0x00, 0x60, 0x00]);
+    runtime.push(0x73);
+    runtime.extend_from_slice(target);
+    runtime.extend_from_slice(&[0x5a, 0xf1]);
+    runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0x60, 0x00, 0x3e]);
+    let ok_dest = u8::try_from(runtime.len() + 7).unwrap();
+    runtime.extend_from_slice(&[0x60, ok_dest, 0x57]);
+    runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0xfd]);
+    runtime.extend_from_slice(&[0x5b, 0x3d, 0x60, 0x00, 0xf3]);
+    let len = u8::try_from(runtime.len()).unwrap();
+    let mut init = vec![
+        0x60, len, 0x60, 0x0c, 0x60, 0x00, 0x39, 0x60, len, 0x60, 0x00, 0xf3,
+    ];
+    init.extend_from_slice(&runtime);
+    init
+}
+
+const DEMO_VAULT_SOLIDITY: &str = "contract Vault {                      // payable
+  uint256 stored;
+  fallback() external payable {
+    if (msg.data.length == 0) return abi.encode(stored);
+    stored = abi.decode(msg.data,(uint256));
+    emit Stored();                    // -> Stacks event
+  } }";
+
+const DEMO_ORACLE_CODE: &str = "(define-read-only (get-answer) u42)";
+
+#[tag(bitcoind)]
+#[test]
+#[ignore]
+/// Narrated end-to-end demo. Run via the `contrib/evm-demo` container, or:
+///   BITCOIND_TEST=1 cargo test -p stacks-node evm_demo -- --ignored --nocapture
+fn evm_demo() {
+    if env::var("BITCOIND_TEST") != Ok("1".into()) {
+        return;
+    }
+
+    use demo_ui::*;
+
+    let sender_sk = StacksPrivateKey::from_seed(&[0xd3; 32]);
+    let sender_addr = to_addr(&sender_sk);
+
+    banner();
+    wait("press Enter to boot bitcoind + 5 signers + miner to Epoch 3.3");
+
+    let signer_test: SignerTest<SpawnedSigner> = SignerTest::new_with_config_modifications(
+        5,
+        vec![(sender_addr.clone(), 100_000_000)],
+        |_| {},
+        |node_config| {
+            let epochs = node_config.burnchain.epochs.as_mut().unwrap();
+            let h = epochs[StacksEpochId::Epoch30].start_height;
+            epochs[StacksEpochId::Epoch30].end_height = h;
+            epochs[StacksEpochId::Epoch31].start_height = h;
+            epochs[StacksEpochId::Epoch31].end_height = h;
+            epochs[StacksEpochId::Epoch32].start_height = h;
+            epochs[StacksEpochId::Epoch32].end_height = h;
+            epochs[StacksEpochId::Epoch33].start_height = h;
+        },
+        None,
+        None,
+    );
+    signer_test.boot_to_epoch_3();
+    let http = signer_test.running_nodes.rpc_origin();
+    let chain_id = signer_test.running_nodes.conf.burnchain.chain_id;
+    signer_test.mine_nakamoto_block(Duration::from_secs(30), true);
+
+    let mut nonce: u64 = 0;
+    // Submit an EVM/Clarity payload and block until the miner includes it.
+    // A local macro (rather than a closure) so it doesn't hold a long-lived
+    // mutable borrow of `nonce`, which the panels below also read.
+    macro_rules! submit {
+        ($payload:expr) => {{
+            let txid = submit_evm_tx(&http, chain_id, &sender_sk, nonce, $payload);
+            signer_test
+                .wait_for_nonce_increase(&sender_addr, nonce)
+                .expect("timed out waiting for the tx to be mined");
+            nonce += 1;
+            txid
+        }};
+    }
+
+    let mut p = step(0, "Chain booted");
+    p.kv("epoch", format!("{GREEN}3.3{RESET}  (EVM payloads active)"));
+    p.kv("network", "regtest nakamoto (bitcoind + 5 signers)");
+    p.kv("sender", sender_addr.to_string());
+    p.kv(
+        "balance",
+        format!("{} uSTX", get_account(&http, &sender_addr).balance),
+    );
+    p.render();
+    ok("A single Stacks key controls both the Stacks and EVM address.");
+    wait("press Enter to deploy an EVM contract");
+
+    // --- step 1: deploy vault -------------------------------------------
+    let txid = submit!(TransactionPayload::EvmPublish(TransactionEvmPublish {
+        gas_limit: GAS_LIMIT,
+        value: 0,
+        code: hex_bytes(STORAGE_INIT_CODE).unwrap(),
+    }));
+    let vault = Hash160(
+        expect_ok_buff(&get_tx_result_by_id(&txid).unwrap())
+            .as_slice()
+            .try_into()
+            .unwrap(),
+    );
+    let mut p = step(1, "EvmPublish - deploy a payable Vault contract");
+    p.line(format!("{DIM}equivalent Solidity:{RESET}"));
+    p.code(DEMO_VAULT_SOLIDITY, CYAN);
+    p.divider();
+    p.kv("status", format!("{GREEN}success{RESET}"));
+    p.kv(
+        "created addr",
+        format!("{GREEN}0x{}{RESET}", to_hex(&vault.0)),
+    );
+    p.render();
+    ok("Deployed in a real signer-approved Nakamoto block; code lives in the MARF.");
+    wait("press Enter to call it with 5 STX attached");
+
+    // --- step 2: write + value transfer ---------------------------------
+    let vault_addr =
+        StacksAddress::new(C32_ADDRESS_VERSION_TESTNET_SINGLESIG, vault.clone()).unwrap();
+    let caller_before = get_account(&http, &sender_addr).balance;
+    let txid = submit!(TransactionPayload::EvmContractCall(
+        TransactionEvmContractCall {
+            address: vault.clone(),
+            gas_limit: GAS_LIMIT,
+            value: 5_000_000,
+            calldata: demo_word_u128(42),
+        }
+    ));
+    let caller_after = get_account(&http, &sender_addr).balance;
+    let vault_bal = get_account(&http, &vault_addr).balance;
+    let logged = observer_has_evm_log(&txid);
+    let mut p = step(2, "EvmContractCall - store 42, send 5 STX (msg.value)");
+    p.kv("status", format!("{GREEN}success{RESET}"));
+    p.kv(
+        "evm log",
+        if logged {
+            format!("{GREEN}Stored event on the Stacks event feed{RESET}")
+        } else {
+            "none".to_string()
+        },
+    );
+    p.divider();
+    p.line(format!(
+        "{DIM}STX ledger (uSTX)         before        after{RESET}"
+    ));
+    p.line(format!(
+        "  caller              {caller_before:>10}   {caller_after:>10}"
+    ));
+    p.line(format!(
+        "  vault contract               0   {GREEN}{vault_bal:>10}{RESET}"
+    ));
+    p.render();
+    ok("msg.value moved real STX to the contract's own Stacks principal:");
+    info(&vault_addr.to_string());
+    wait("press Enter to read the stored value back");
+
+    // --- step 3: read path ----------------------------------------------
+    let txid = submit!(TransactionPayload::EvmContractCall(
+        TransactionEvmContractCall {
+            address: vault.clone(),
+            gas_limit: GAS_LIMIT,
+            value: 0,
+            calldata: vec![],
+        }
+    ));
+    let ret = expect_ok_buff(&get_tx_result_by_id(&txid).unwrap());
+    let mut p = step(3, "EvmContractCall - read slot 0 (a separate tx)");
+    p.kv("returned", format!("0x{}", to_hex(&ret)));
+    p.kv(
+        "decoded",
+        format!("{GREEN}{}{RESET}", demo_word_to_u128(&ret)),
+    );
+    p.render();
+    ok("EVM contract storage persisted across transactions, in the MARF.");
+    wait("press Enter to deploy a Clarity contract");
+
+    // --- step 4: deploy Clarity oracle ----------------------------------
+    let txid =
+        submit!(TransactionPayload::new_smart_contract("oracle", DEMO_ORACLE_CODE, None).unwrap());
+    let oracle_id = format!("{sender_addr}.oracle");
+    assert_eq!(get_tx_status_by_id(&txid).as_deref(), Some("success"));
+    let mut p = step(4, "SmartContract - deploy a normal Clarity contract");
+    p.line(format!("{DIM}Clarity:{RESET}"));
+    p.code(DEMO_ORACLE_CODE, YELLOW);
+    p.divider();
+    p.kv("contract", format!("{GREEN}{oracle_id}{RESET}"));
+    p.render();
+    ok("A plain Clarity contract, deployed the normal way.");
+    wait("press Enter for the headline: an EVM contract reading Clarity");
+
+    // --- step 5: clarity-read bridge ------------------------------------
+    let txid = submit!(TransactionPayload::EvmPublish(TransactionEvmPublish {
+        gas_limit: GAS_LIMIT,
+        value: 0,
+        code: demo_forwarder_init_code(&CLARITY_READ_PRECOMPILE.0 .0),
+    }));
+    let forwarder = Hash160(
+        expect_ok_buff(&get_tx_result_by_id(&txid).unwrap())
+            .as_slice()
+            .try_into()
+            .unwrap(),
+    );
+    let calldata = encode_call_input(&oracle_id, "get-answer", &[]);
+    let txid = submit!(TransactionPayload::EvmContractCall(
+        TransactionEvmContractCall {
+            address: forwarder,
+            gas_limit: 2_000_000,
+            value: 0,
+            calldata,
+        }
+    ));
+    let ret = expect_ok_buff(&get_tx_result_by_id(&txid).unwrap());
+    let mut p = step(5, "EVM -> Clarity  (clarity-read precompile)");
+    p.line(format!(
+        "{DIM}the forwarder EVM contract runs, in effect:{RESET}"
+    ));
+    p.code(
+        "// precompile at 0x00..c1a90001\n\
+         (ok, ret) = CLARITY_READ.staticcall(\n\
+         \x20   abi.encode(\"SP..oracle\", \"get-answer\", \"\"));\n\
+         uint answer = abi.decode(ret, (uint));",
+        CYAN,
+    );
+    p.divider();
+    p.kv(
+        "precompile",
+        format!("0x{}", to_hex(&CLARITY_READ_PRECOMPILE.0 .0)),
+    );
+    p.kv("clarity fn", format!("{oracle_id} :: get-answer"));
+    p.kv(
+        "decoded",
+        format!(
+            "{GREEN}{BOLD}{}{RESET}  (Clarity's u42, read by the EVM)",
+            demo_word_to_u128(&ret)
+        ),
+    );
+    p.render();
+    ok("An EVM contract just read live Clarity state through the precompile,");
+    info("with the Clarity execution cost charged against the EVM gas limit.");
+    wait("press Enter to see a revert");
+
+    // --- step 6: revert semantics ---------------------------------------
+    let txid = submit!(TransactionPayload::EvmPublish(TransactionEvmPublish {
+        gas_limit: GAS_LIMIT,
+        value: 0,
+        code: hex_bytes(REVERT_INIT_CODE).unwrap(),
+    }));
+    let guard = Hash160(
+        expect_ok_buff(&get_tx_result_by_id(&txid).unwrap())
+            .as_slice()
+            .try_into()
+            .unwrap(),
+    );
+    let nonce_before = nonce;
+    let txid = submit!(TransactionPayload::EvmContractCall(
+        TransactionEvmContractCall {
+            address: guard,
+            gas_limit: GAS_LIMIT,
+            value: 1_000_000,
+            calldata: vec![],
+        }
+    ));
+    let mut p = step(6, "Revert - mined, fee paid, nothing moved");
+    p.kv(
+        "status",
+        format!(
+            "{YELLOW}{}{RESET}",
+            get_tx_status_by_id(&txid).unwrap_or_default()
+        ),
+    );
+    p.kv("value attempted", "1000000 uSTX  (rolled back)");
+    p.kv("nonce", format!("{nonce_before} -> {nonce}  (consumed)"));
+    p.render();
+    ok("A revert is a mined transaction: nonce advances, no state changes.");
+    wait("press Enter to finish");
+
+    let bar = "=".repeat(74);
+    eprintln!("{GREEN}{BOLD}+{bar}+{RESET}");
+    for line in [
+        "  EVM-on-Stacks: Solidity-style contracts, Bitcoin-anchored settlement.",
+        "",
+        "  * EVM state lives in the MARF  (fork-aware, block-committed)",
+        "  * EVM balances ARE the STX ledger  (1 wei = 1 uSTX)",
+        "  * EVM gas maps into Clarity block cost  (one meter)",
+        "  * EVM contracts can read Clarity via the clarity-read precompile",
+    ] {
+        eprintln!("{GREEN}{BOLD}|{RESET} {line:<72} {GREEN}{BOLD}|{RESET}");
+    }
+    eprintln!("{GREEN}{BOLD}+{bar}+{RESET}");
+
+    // brief pause so the closing panel isn't clobbered by shutdown logs
+    thread::sleep(Duration::from_millis(500));
+    let _ = io::stderr().flush();
     signer_test.shutdown();
 }

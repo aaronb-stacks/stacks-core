@@ -2500,6 +2500,40 @@ impl ClarityTransactionConnection<'_, '_> {
         })
     }
 
+    /// Like `with_clarity_db`, but passes the `ClarityDatabase` to the
+    /// closure by value and expects it back. This allows the closure to
+    /// temporarily move the database into structures that require ownership
+    /// (e.g. an `OwnedEnvironment`, or the EVM's shared database cell).
+    pub fn with_clarity_db_owned<F, R>(&mut self, to_do: F) -> Result<R, ClarityError>
+    where
+        F: for<'db> FnOnce(ClarityDatabase<'db>) -> (ClarityDatabase<'db>, Result<R, ClarityError>),
+    {
+        using!(self.log, "log", |log| {
+            let rollback_wrapper = RollbackWrapper::from_persisted_log(self.store, log);
+            let mut db = ClarityDatabase::new_with_rollback_wrapper(
+                rollback_wrapper,
+                self.header_db,
+                self.burn_state_db,
+            )
+            .with_cache(&mut self.cache);
+
+            db.begin();
+            let (mut db, result) = to_do(db);
+            let db_result = if result.is_ok() {
+                db.commit()
+            } else {
+                db.roll_back()
+            };
+
+            let result = match db_result {
+                Ok(_) => result,
+                Err(e) => Err(e.into()),
+            };
+
+            (db.destroy().into(), result)
+        })
+    }
+
     /// What's our total (block-wide) resource use so far?
     pub fn cost_so_far(&self) -> ExecutionCost {
         match self.cost_track {

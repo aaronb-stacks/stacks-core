@@ -1877,11 +1877,12 @@ impl StacksChainState {
                 let cost_before = clarity_tx.cost_so_far();
 
                 let outcome = clarity_tx
-                    .with_clarity_db(|db| match &tx.payload {
+                    .with_clarity_db_owned(|db| match &tx.payload {
                         TransactionPayload::EvmPublish(payload) => evm::run_evm_publish(
                             db,
                             mainnet,
                             chain_id,
+                            epoch_id,
                             &origin_account.principal,
                             payload,
                         ),
@@ -1889,6 +1890,7 @@ impl StacksChainState {
                             db,
                             mainnet,
                             chain_id,
+                            epoch_id,
                             &origin_account.principal,
                             payload,
                         ),

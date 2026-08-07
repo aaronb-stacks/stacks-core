@@ -42,6 +42,12 @@
 //! execution succeeds. Reverts and halts leave no EVM state behind (the
 //! transaction is still mined and its fee still paid).
 
+pub mod abi;
+pub mod clarity_precompile;
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use clarity::vm::clarity::ClarityError;
 use clarity::vm::database::ClarityDatabase;
 use clarity::vm::errors::{VmExecutionError, VmInternalError};
@@ -60,8 +66,12 @@ use revm::{Context, Database, ExecuteEvm, MainBuilder, MainContext};
 use stacks_common::address::{
     C32_ADDRESS_VERSION_MAINNET_SINGLESIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
 };
+use stacks_common::types::StacksEpochId;
 use stacks_common::util::hash::{hex_bytes, to_hex, Hash160};
 
+pub use crate::chainstate::stacks::db::evm::clarity_precompile::{
+    ClarityPrecompiles, CLARITY_READ_PRECOMPILE,
+};
 use crate::chainstate::stacks::{TransactionEvmContractCall, TransactionEvmPublish};
 
 /// Hard cap on the EVM gas limit a single transaction may request.
@@ -165,13 +175,54 @@ fn evm_storage_key(address: &Address, slot: &U256) -> String {
     )
 }
 
+/// The shared handle to the Clarity database during an EVM execution. The
+/// database is owned by the cell so that both the `revm::Database` shim and
+/// the Clarity precompiles can access it (revm is single-threaded, and the
+/// precompiles temporarily `take` the database out to build a Clarity VM
+/// environment, which requires ownership).
+pub type SharedClarityDb<'a> = Rc<RefCell<Option<ClarityDatabase<'a>>>>;
+
+fn read_nonce(db: &mut ClarityDatabase, address: &Address) -> Result<u64, EvmDbError> {
+    let nonce_str: Option<String> = db.get_data(&evm_nonce_key(address))?;
+    let Some(nonce_str) = nonce_str else {
+        return Ok(0);
+    };
+    nonce_str
+        .parse::<u64>()
+        .map_err(|_| EvmDbError(format!("corrupt EVM nonce for {address}")))
+}
+
+fn read_code(db: &mut ClarityDatabase, address: &Address) -> Result<Option<Bytecode>, EvmDbError> {
+    let code_hex: Option<String> = db.get_data(&evm_code_key(address))?;
+    let Some(code_hex) = code_hex else {
+        return Ok(None);
+    };
+    if code_hex.is_empty() {
+        // self-destructed contract
+        return Ok(None);
+    }
+    let code_bytes =
+        hex_bytes(&code_hex).map_err(|_| EvmDbError(format!("corrupt EVM code for {address}")))?;
+    Ok(Some(Bytecode::new_raw(Bytes::from(code_bytes))))
+}
+
+fn read_available_balance(
+    db: &mut ClarityDatabase,
+    address: &Address,
+    mainnet: bool,
+) -> Result<u128, EvmDbError> {
+    let principal = evm_address_to_principal(address, mainnet);
+    let mut snapshot = db.get_stx_balance_snapshot(&principal)?;
+    Ok(snapshot.get_available_balance()?)
+}
+
 /// `revm::Database` implementation over the MARF-backed Clarity KV store.
 ///
 /// Reads are served live from `evm::` keys plus the STX account ledger.
 /// Balances first reported to the interpreter are remembered so that the
 /// post-execution balance deltas can be applied to the STX ledger.
-pub struct StacksEvmDb<'a, 'db> {
-    db: &'db mut ClarityDatabase<'a>,
+pub struct StacksEvmDb<'a> {
+    cell: SharedClarityDb<'a>,
     mainnet: bool,
     /// code fetched via `basic()`, so `code_by_hash` can answer from cache
     code_cache: std::collections::HashMap<B256, Bytecode>,
@@ -179,10 +230,10 @@ pub struct StacksEvmDb<'a, 'db> {
     loaded_balances: std::collections::HashMap<Address, u128>,
 }
 
-impl<'a, 'db> StacksEvmDb<'a, 'db> {
-    pub fn new(db: &'db mut ClarityDatabase<'a>, mainnet: bool) -> Self {
+impl<'a> StacksEvmDb<'a> {
+    pub fn new(cell: SharedClarityDb<'a>, mainnet: bool) -> Self {
         StacksEvmDb {
-            db,
+            cell,
             mainnet,
             code_cache: std::collections::HashMap::new(),
             loaded_balances: std::collections::HashMap::new(),
@@ -195,60 +246,42 @@ impl<'a, 'db> StacksEvmDb<'a, 'db> {
         if let Some(balance) = self.loaded_balances.get(address) {
             return Ok(*balance);
         }
-        let principal = evm_address_to_principal(address, self.mainnet);
-        let mut snapshot = self.db.get_stx_balance_snapshot(&principal)?;
-        let balance = snapshot.get_available_balance()?;
+        let mut guard = self.cell.borrow_mut();
+        let db = guard
+            .as_mut()
+            .ok_or_else(|| EvmDbError("EVM database cell is empty".into()))?;
+        let balance = read_available_balance(db, address, self.mainnet)?;
+        drop(guard);
         self.loaded_balances.insert(*address, balance);
         Ok(balance)
-    }
-
-    fn load_nonce(&mut self, address: &Address) -> Result<u64, EvmDbError> {
-        let nonce_str: Option<String> = self.db.get_data(&evm_nonce_key(address))?;
-        let Some(nonce_str) = nonce_str else {
-            return Ok(0);
-        };
-        nonce_str
-            .parse::<u64>()
-            .map_err(|_| EvmDbError(format!("corrupt EVM nonce for {address}")))
-    }
-
-    fn load_code(&mut self, address: &Address) -> Result<Option<Bytecode>, EvmDbError> {
-        let code_hex: Option<String> = self.db.get_data(&evm_code_key(address))?;
-        let Some(code_hex) = code_hex else {
-            return Ok(None);
-        };
-        if code_hex.is_empty() {
-            // self-destructed contract
-            return Ok(None);
-        }
-        let code_bytes = hex_bytes(&code_hex)
-            .map_err(|_| EvmDbError(format!("corrupt EVM code for {address}")))?;
-        Ok(Some(Bytecode::new_raw(Bytes::from(code_bytes))))
     }
 
     /// Apply the interpreter's post-execution state diff to the underlying
     /// store. Only called after a successful execution.
     fn commit_state(&mut self, state: &EvmState) -> Result<(), EvmDbError> {
+        let mut guard = self.cell.borrow_mut();
+        let db = guard
+            .as_mut()
+            .ok_or_else(|| EvmDbError("EVM database cell is empty".into()))?;
         for (address, account) in state.iter() {
             if !account.is_touched() {
                 continue;
             }
 
             // nonce
-            let stored_nonce = self.load_nonce(address)?;
+            let stored_nonce = read_nonce(db, address)?;
             if account.info.nonce != stored_nonce {
-                self.db
-                    .put_data(&evm_nonce_key(address), &account.info.nonce.to_string())?;
+                db.put_data(&evm_nonce_key(address), &account.info.nonce.to_string())?;
             }
 
             // code: written once at creation; cleared on self-destruct
             if account.is_selfdestructed() {
-                self.db.put_data(&evm_code_key(address), &String::new())?;
+                db.put_data(&evm_code_key(address), &String::new())?;
             } else if account.is_created() {
                 if let Some(code) = account.info.code.as_ref() {
                     if !code.is_empty() && account.info.code_hash != KECCAK_EMPTY {
                         let code_hex = to_hex(code.original_byte_slice());
-                        self.db.put_data(&evm_code_key(address), &code_hex)?;
+                        db.put_data(&evm_code_key(address), &code_hex)?;
                     }
                 }
             }
@@ -256,12 +289,16 @@ impl<'a, 'db> StacksEvmDb<'a, 'db> {
             // changed storage slots
             for (slot, slot_value) in account.changed_storage_slots() {
                 let value_hex = format!("{:064x}", slot_value.present_value);
-                self.db
-                    .put_data(&evm_storage_key(address, slot), &value_hex)?;
+                db.put_data(&evm_storage_key(address, slot), &value_hex)?;
             }
 
-            // balance delta relative to what the interpreter was told
-            let old_balance = self.load_balance(address)?;
+            // balance delta relative to what the interpreter was told; the
+            // delta (rather than the absolute balance) is applied so that
+            // concurrent STX movements outside the EVM's view compose
+            let old_balance = match self.loaded_balances.get(address) {
+                Some(balance) => *balance,
+                None => read_available_balance(db, address, self.mainnet)?,
+            };
             let new_balance: u128 = account
                 .info
                 .balance
@@ -269,11 +306,11 @@ impl<'a, 'db> StacksEvmDb<'a, 'db> {
                 .map_err(|_| EvmDbError(format!("EVM balance of {address} overflows u128")))?;
             let principal = evm_address_to_principal(address, self.mainnet);
             if new_balance > old_balance {
-                let mut snapshot = self.db.get_stx_balance_snapshot(&principal)?;
+                let mut snapshot = db.get_stx_balance_snapshot(&principal)?;
                 snapshot.credit(new_balance - old_balance)?;
                 snapshot.save()?;
             } else if new_balance < old_balance {
-                let mut snapshot = self.db.get_stx_balance_snapshot(&principal)?;
+                let mut snapshot = db.get_stx_balance_snapshot(&principal)?;
                 snapshot.debit(old_balance - new_balance)?;
                 snapshot.save()?;
             }
@@ -283,13 +320,18 @@ impl<'a, 'db> StacksEvmDb<'a, 'db> {
     }
 }
 
-impl Database for StacksEvmDb<'_, '_> {
+impl Database for StacksEvmDb<'_> {
     type Error = EvmDbError;
 
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let balance = self.load_balance(&address)?;
-        let nonce = self.load_nonce(&address)?;
-        let code = self.load_code(&address)?;
+        let (nonce, code) = {
+            let mut guard = self.cell.borrow_mut();
+            let db = guard
+                .as_mut()
+                .ok_or_else(|| EvmDbError("EVM database cell is empty".into()))?;
+            (read_nonce(db, &address)?, read_code(db, &address)?)
+        };
 
         if balance == 0 && nonce == 0 && code.is_none() {
             return Ok(None);
@@ -324,7 +366,11 @@ impl Database for StacksEvmDb<'_, '_> {
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let value_hex: Option<String> = self.db.get_data(&evm_storage_key(&address, &index))?;
+        let mut guard = self.cell.borrow_mut();
+        let db = guard
+            .as_mut()
+            .ok_or_else(|| EvmDbError("EVM database cell is empty".into()))?;
+        let value_hex: Option<String> = db.get_data(&evm_storage_key(&address, &index))?;
         let Some(value_hex) = value_hex else {
             return Ok(U256::ZERO);
         };
@@ -381,17 +427,19 @@ fn result_buff(data: &[u8]) -> Value {
 
 /// Execute an `EvmPublish` payload. The contract is created at the standard
 /// EVM CREATE address (keccak256(rlp(sender, evm_nonce))[12..]).
-pub fn run_evm_publish(
-    db: &mut ClarityDatabase,
+pub fn run_evm_publish<'db>(
+    db: ClarityDatabase<'db>,
     mainnet: bool,
     chain_id: u32,
+    epoch: StacksEpochId,
     origin: &PrincipalData,
     payload: &TransactionEvmPublish,
-) -> Result<EvmOutcome, ClarityError> {
+) -> (ClarityDatabase<'db>, Result<EvmOutcome, ClarityError>) {
     run_evm(
         db,
         mainnet,
         chain_id,
+        epoch,
         origin,
         TxKind::Create,
         payload.gas_limit,
@@ -401,17 +449,19 @@ pub fn run_evm_publish(
 }
 
 /// Execute an `EvmContractCall` payload.
-pub fn run_evm_call(
-    db: &mut ClarityDatabase,
+pub fn run_evm_call<'db>(
+    db: ClarityDatabase<'db>,
     mainnet: bool,
     chain_id: u32,
+    epoch: StacksEpochId,
     origin: &PrincipalData,
     payload: &TransactionEvmContractCall,
-) -> Result<EvmOutcome, ClarityError> {
+) -> (ClarityDatabase<'db>, Result<EvmOutcome, ClarityError>) {
     run_evm(
         db,
         mainnet,
         chain_id,
+        epoch,
         origin,
         TxKind::Call(Address::from(payload.address.0)),
         payload.gas_limit,
@@ -420,17 +470,25 @@ pub fn run_evm_call(
     )
 }
 
+/// Take the database back out of the shared cell after execution.
+fn reclaim_db<'db>(cell: &SharedClarityDb<'db>) -> ClarityDatabase<'db> {
+    cell.borrow_mut()
+        .take()
+        .expect("BUG: EVM database cell is empty after execution")
+}
+
 #[allow(clippy::too_many_arguments)]
-fn run_evm(
-    db: &mut ClarityDatabase,
+fn run_evm<'db>(
+    mut db: ClarityDatabase<'db>,
     mainnet: bool,
     chain_id: u32,
+    epoch: StacksEpochId,
     origin: &PrincipalData,
     kind: TxKind,
     gas_limit: u64,
     value: u64,
     data: Vec<u8>,
-) -> Result<EvmOutcome, ClarityError> {
+) -> (ClarityDatabase<'db>, Result<EvmOutcome, ClarityError>) {
     let caller = principal_to_evm_address(origin);
 
     let block_height = db.get_current_block_height();
@@ -442,11 +500,16 @@ fn run_evm(
     } else {
         0
     };
+    let caller_nonce = match read_nonce(&mut db, &caller) {
+        Ok(nonce) => nonce,
+        Err(e) => return (db, Err(evm_error(e.to_string()))),
+    };
 
-    let mut shim = StacksEvmDb::new(db, mainnet);
-    let caller_nonce = shim
-        .load_nonce(&caller)
-        .map_err(|e| evm_error(e.to_string()))?;
+    // the database is shared between the revm Database shim and the Clarity
+    // precompiles for the duration of the execution
+    let cell: SharedClarityDb<'db> = Rc::new(RefCell::new(Some(db)));
+    let mut shim = StacksEvmDb::new(cell.clone(), mainnet);
+    let precompiles = ClarityPrecompiles::new(cell.clone(), mainnet, chain_id, epoch, EVM_SPEC);
 
     let mut cfg_env = CfgEnv::new_with_spec(EVM_SPEC);
     cfg_env.chain_id = u64::from(chain_id);
@@ -476,7 +539,8 @@ fn run_evm(
         .with_db(&mut shim)
         .with_cfg(cfg_env)
         .with_block(block_env)
-        .build_mainnet();
+        .build_mainnet()
+        .with_precompiles(precompiles);
 
     let transact_result = evm.transact(tx_env);
     drop(evm);
@@ -485,23 +549,37 @@ fn run_evm(
         Ok(result_and_state) => result_and_state,
         Err(EVMError::Database(db_err)) => {
             // a real storage failure aborts transaction processing
-            return Err(evm_error(db_err.to_string()));
+            return (reclaim_db(&cell), Err(evm_error(db_err.to_string())));
         }
         Err(other) => {
             // statically invalid EVM transaction (e.g. balance below value,
             // init code too large): mined as a failed transaction
             debug!("EVM transaction invalid: {other}");
-            return Ok(EvmOutcome {
-                result: Value::error(result_buff(&[]))
-                    .expect("BUG: failed to construct error value"),
-                events: vec![],
-                gas_used: 0,
-                created_address: None,
-                succeeded: false,
-            });
+            return (
+                reclaim_db(&cell),
+                Ok(EvmOutcome {
+                    result: Value::error(result_buff(&[]))
+                        .expect("BUG: failed to construct error value"),
+                    events: vec![],
+                    gas_used: 0,
+                    created_address: None,
+                    succeeded: false,
+                }),
+            );
         }
     };
 
+    let outcome = process_execution_result(&mut shim, mainnet, result_and_state);
+    (reclaim_db(&cell), outcome)
+}
+
+/// Map a completed EVM execution to an `EvmOutcome`, committing the state
+/// diff on success.
+fn process_execution_result(
+    shim: &mut StacksEvmDb,
+    mainnet: bool,
+    result_and_state: revm::context::result::ExecResultAndState<ExecutionResult, EvmState>,
+) -> Result<EvmOutcome, ClarityError> {
     match result_and_state.result {
         ExecutionResult::Success {
             gas, logs, output, ..
@@ -665,6 +743,87 @@ mod test {
             "expected err, got {:?}",
             receipt.result
         );
+    }
+
+    /// Extract the buff payload from an `(err (buff ...))` receipt result.
+    fn expect_err_buff(receipt: &StacksTransactionReceipt) -> Vec<u8> {
+        let response = match &receipt.result {
+            Value::Response(response) => response,
+            other => panic!("expected response value, got {other:?}"),
+        };
+        assert!(
+            !response.committed,
+            "expected err, got {:?}",
+            receipt.result
+        );
+        match response.data.as_ref() {
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(buff)) => buff.data.clone(),
+            other => panic!("expected buff, got {other:?}"),
+        }
+    }
+
+    /// A 32-byte ABI word holding a u128 in its low bytes.
+    fn word_u128(value: u128) -> Vec<u8> {
+        let mut word = vec![0u8; 32];
+        word[16..32].copy_from_slice(&value.to_be_bytes());
+        word
+    }
+
+    /// ABI encoding of a single dynamic `bytes` argument.
+    fn abi_bytes_arg(data: &[u8]) -> Vec<u8> {
+        let mut out = word_u128(32);
+        out.extend_from_slice(&word_u128(data.len() as u128));
+        out.extend_from_slice(data);
+        out.resize(64 + data.len().div_ceil(32) * 32, 0);
+        out
+    }
+
+    /// EVM init code for a contract that forwards its calldata to `target`
+    /// via CALL and bubbles up the result (return or revert).
+    fn forwarder_init_code(target: &Address) -> Vec<u8> {
+        // calldatacopy(0, 0, calldatasize)
+        let mut runtime = vec![0x36, 0x60, 0x00, 0x60, 0x00, 0x37];
+        // call(gas, target, 0, 0, calldatasize, 0, 0)
+        runtime.extend_from_slice(&[0x60, 0x00, 0x60, 0x00, 0x36, 0x60, 0x00, 0x60, 0x00]);
+        runtime.push(0x73); // PUSH20
+        runtime.extend_from_slice(target.as_slice());
+        runtime.extend_from_slice(&[0x5a, 0xf1]); // GAS CALL
+                                                  // returndatacopy(0, 0, returndatasize)
+        runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0x60, 0x00, 0x3e]);
+        // bubble: jump to ok on success, else revert(0, returndatasize)
+        let ok_dest = u8::try_from(runtime.len() + 7).unwrap();
+        runtime.extend_from_slice(&[0x60, ok_dest, 0x57]); // PUSH1 ok JUMPI
+        runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0xfd]); // REVERT
+        runtime.extend_from_slice(&[0x5b, 0x3d, 0x60, 0x00, 0xf3]); // JUMPDEST RETURN
+                                                                    // init: codecopy(0, 0x0c, len); return(0, len)
+        let len = u8::try_from(runtime.len()).unwrap();
+        let mut init = vec![
+            0x60, len, 0x60, 0x0c, 0x60, 0x00, 0x39, 0x60, len, 0x60, 0x00, 0xf3,
+        ];
+        init.extend_from_slice(&runtime);
+        init
+    }
+
+    /// The Clarity contract targeted by the precompile tests.
+    const CLARITY_TARGET_NAME: &str = "evm-target";
+    const CLARITY_TARGET_CODE: &str = r#"
+(define-read-only (add-forty (x uint)) (+ x u40))
+(define-read-only (echo-buff (b (buff 40))) b)
+(define-read-only (echo-principal (p principal)) p)
+(define-read-only (checked (flag bool)) (if flag (ok u7) (err u99)))
+(define-data-var counter uint u0)
+(define-public (bump)
+  (ok (var-set counter (+ (var-get counter) u1))))
+"#;
+
+    /// Build a precompile call payload targeting the Clarity fixture.
+    fn clarity_read_payload(contract_id: &str, function: &str, args: &[u8]) -> TransactionPayload {
+        call_payload(
+            &Hash160(CLARITY_READ_PRECOMPILE.0 .0),
+            1_000_000,
+            0,
+            abi::encode_call_input(contract_id, function, args),
+        )
     }
 
     #[test]
@@ -988,6 +1147,190 @@ mod test {
         );
         let res = StacksChainState::process_transaction(&mut conn, &signed_tx, false, None);
         assert!(matches!(res, Err(Error::InvalidStacksTransaction(..))));
+        conn.commit_block();
+    }
+
+    #[test]
+    fn evm_clarity_read_precompile_direct() {
+        let mut chainstate = TestChainstateBuilder::new_testnet(function_name!()).build();
+
+        let privk = StacksPrivateKey::from_hex(
+            "6d430bb91222408e7706c9001cfaeb91b08c2be6d5ac95779ab52c6b431950e001",
+        )
+        .unwrap();
+        let auth = TransactionAuth::from_p2pkh(&privk).unwrap();
+        let addr = auth.origin().address_testnet();
+        let contract_id = format!("{addr}.{CLARITY_TARGET_NAME}");
+
+        let mut conn = chainstate.block_begin(
+            &TestBurnStateDB_33,
+            &FIRST_BURNCHAIN_CONSENSUS_HASH,
+            &FIRST_STACKS_BLOCK_HASH,
+            &ConsensusHash([6u8; 20]),
+            &BlockHeaderHash([6u8; 32]),
+        );
+
+        // deploy the Clarity fixture contract with a normal contract-publish
+        let deploy_tx = make_evm_tx(
+            &privk,
+            0,
+            TransactionPayload::new_smart_contract(CLARITY_TARGET_NAME, CLARITY_TARGET_CODE, None)
+                .unwrap(),
+        );
+        StacksChainState::process_transaction(&mut conn, &deploy_tx, false, None).unwrap();
+
+        // uint round trip: add-forty(2) == u42
+        let tx = make_evm_tx(
+            &privk,
+            1,
+            clarity_read_payload(&contract_id, "add-forty", &word_u128(2)),
+        );
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
+        assert_eq!(expect_ok_buff(&receipt), word_u128(42));
+
+        // response unwrapping: checked(true) -> (ok u7) -> returndata u7
+        let mut flag_true = vec![0u8; 32];
+        flag_true[31] = 1;
+        let tx = make_evm_tx(
+            &privk,
+            2,
+            clarity_read_payload(&contract_id, "checked", &flag_true),
+        );
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
+        assert_eq!(expect_ok_buff(&receipt), word_u128(7));
+
+        // response unwrapping: checked(false) -> (err u99) -> revert with u99
+        let tx = make_evm_tx(
+            &privk,
+            3,
+            clarity_read_payload(&contract_id, "checked", &vec![0u8; 32]),
+        );
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
+        assert_eq!(expect_err_buff(&receipt), word_u128(99));
+
+        // principal <-> address round trip
+        let caller_evm = principal_to_evm_address(&PrincipalData::from(addr.clone()));
+        let mut principal_arg = vec![0u8; 32];
+        principal_arg[12..32].copy_from_slice(caller_evm.as_slice());
+        let tx = make_evm_tx(
+            &privk,
+            4,
+            clarity_read_payload(&contract_id, "echo-principal", &principal_arg),
+        );
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
+        assert_eq!(expect_ok_buff(&receipt), principal_arg);
+
+        // buff round trip (dynamic argument and dynamic return)
+        let buff_data = vec![0xab; 33];
+        let args = abi_bytes_arg(&buff_data);
+        let tx = make_evm_tx(
+            &privk,
+            5,
+            clarity_read_payload(&contract_id, "echo-buff", &args),
+        );
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
+        assert_eq!(expect_ok_buff(&receipt), args);
+
+        // a write-attempting public function is rejected as not read-only,
+        // surfaced as a revert with an Error(string) payload
+        let tx = make_evm_tx(&privk, 6, clarity_read_payload(&contract_id, "bump", &[]));
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
+        let revert_data = expect_err_buff(&receipt);
+        assert_eq!(&revert_data[..4], &[0x08, 0xc3, 0x79, 0xa0]);
+
+        // unknown contract is a clean failure, not a panic
+        let tx = make_evm_tx(
+            &privk,
+            7,
+            clarity_read_payload(&format!("{addr}.nonexistent"), "add-forty", &word_u128(2)),
+        );
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
+        let revert_data = expect_err_buff(&receipt);
+        assert_eq!(&revert_data[..4], &[0x08, 0xc3, 0x79, 0xa0]);
+
+        // the counter variable must not have been bumped
+        conn.connection().as_transaction(|tx_conn| {
+            tx_conn
+                .with_clarity_db(|db| {
+                    let contract =
+                        QualifiedContractIdentifier::parse(&contract_id).expect("valid id");
+                    let epoch = db.get_clarity_epoch_version()?;
+                    let counter =
+                        db.lookup_variable_unknown_descriptor(&contract, "counter", &epoch)?;
+                    assert_eq!(counter, Value::UInt(0));
+                    Ok(())
+                })
+                .unwrap()
+        });
+
+        conn.commit_block();
+    }
+
+    #[test]
+    fn evm_clarity_read_precompile_via_contract() {
+        let mut chainstate = TestChainstateBuilder::new_testnet(function_name!()).build();
+
+        let privk = StacksPrivateKey::from_hex(
+            "6d430bb91222408e7706c9001cfaeb91b08c2be6d5ac95779ab52c6b431950e001",
+        )
+        .unwrap();
+        let auth = TransactionAuth::from_p2pkh(&privk).unwrap();
+        let addr = auth.origin().address_testnet();
+        let contract_id = format!("{addr}.{CLARITY_TARGET_NAME}");
+
+        let mut conn = chainstate.block_begin(
+            &TestBurnStateDB_33,
+            &FIRST_BURNCHAIN_CONSENSUS_HASH,
+            &FIRST_STACKS_BLOCK_HASH,
+            &ConsensusHash([7u8; 20]),
+            &BlockHeaderHash([7u8; 32]),
+        );
+
+        // deploy the Clarity fixture and the EVM forwarder contract
+        let deploy_tx = make_evm_tx(
+            &privk,
+            0,
+            TransactionPayload::new_smart_contract(CLARITY_TARGET_NAME, CLARITY_TARGET_CODE, None)
+                .unwrap(),
+        );
+        StacksChainState::process_transaction(&mut conn, &deploy_tx, false, None).unwrap();
+
+        let init_code = forwarder_init_code(&CLARITY_READ_PRECOMPILE);
+        let publish_tx = make_evm_tx(
+            &privk,
+            1,
+            TransactionPayload::EvmPublish(TransactionEvmPublish {
+                gas_limit: 1_000_000,
+                value: 0,
+                code: init_code,
+            }),
+        );
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &publish_tx, false, None).unwrap();
+        let forwarder = Hash160(expect_ok_buff(&receipt).as_slice().try_into().unwrap());
+
+        // an EVM contract calling into Clarity: forwarder -> precompile ->
+        // add-forty(2) == u42
+        let calldata = abi::encode_call_input(&contract_id, "add-forty", &word_u128(2));
+        let tx = make_evm_tx(&privk, 2, call_payload(&forwarder, 1_000_000, 0, calldata));
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
+        assert_eq!(expect_ok_buff(&receipt), word_u128(42));
+
+        // the (err ...) path bubbles through the intermediate contract too
+        let calldata = abi::encode_call_input(&contract_id, "checked", &vec![0u8; 32]);
+        let tx = make_evm_tx(&privk, 3, call_payload(&forwarder, 1_000_000, 0, calldata));
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
+        assert_eq!(expect_err_buff(&receipt), word_u128(99));
+
         conn.commit_block();
     }
 }
