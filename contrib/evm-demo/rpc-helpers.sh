@@ -43,6 +43,42 @@ chain() {
     }'
 }
 
+# Decimal uSTX balance of a principal (the RPC returns it as hex).
+_ustx() {
+    curl -s "$NODE/v2/accounts/$1?proof=0" \
+        | jq -r '.balance | ltrimstr("0x") | ascii_downcase | explode
+                 | map(if . >= 97 then . - 87 else . - 48 end)
+                 | reduce .[] as $d (0; . * 16 + $d)'
+}
+
+# One-shot balance table for every account in the demo. Run it before and
+# after a value-moving step to see the ledger change.
+balances() {
+    _demo_load || return 1
+    printf '%-18s %-46s %14s\n' WHO PRINCIPAL uSTX
+    printf '%-18s %-46s %14s\n' "sender" "$SENDER" "$(_ustx "$SENDER")"
+    if [ -n "${VAULT:-}" ]; then
+        printf '%-18s %-46s %14s\n' "vault (EVM)" "$VAULT" "$(_ustx "$VAULT")"
+    fi
+    if [ -n "${CALLER:-}" ]; then
+        printf '%-18s %-46s %14s\n' "caller (Clarity)" "$CALLER" "$(_ustx "$CALLER")"
+    fi
+}
+
+# Print a contract's source as stored on chain: `src` (the evm-caller) or
+# `src <addr>.<name>`. Handy for showing real `(evm-call? ...)` Clarity on
+# chain, not in a slide.
+src() {
+    _demo_load || return 1
+    local id="${1:-${CALLER:-}}"
+    if [ -z "$id" ]; then
+        echo "usage: src <addr>.<contract-name>" >&2
+        return 1
+    fi
+    local addr="${id%%.*}" name="${id##*.}"
+    curl -s "$NODE/v2/contracts/source/$addr/$name?proof=0" | jq -r '.source'
+}
+
 # Balance and nonce for any principal: `acct SP...` or `acct SP....contract`
 acct() {
     _demo_load || return 1
@@ -121,25 +157,72 @@ watch-balances() {
     done
 }
 
+# What to run right now: the demo publishes STEP as it pauses, so this
+# tracks whichever step you are on.
+step() {
+    _demo_load || return 1
+    echo "the demo is paused after STEP ${STEP:-0}. Worth running here:"
+    echo
+    case "${STEP:-0}" in
+    0)
+        echo "  chain      # epoch 3.3, tip height -- a real booted chain"
+        echo "  balances   # the sender is funded; no EVM contracts exist yet"
+        ;;
+    1)
+        echo "  addrs      # the EVM contract now has a Stacks principal"
+        echo "  balances   # ...and its balance is still 0 (nothing sent yet)"
+        ;;
+    2)
+        echo "  balances   # <- the money shot: 5 STX now sits in the EVM contract"
+        echo "  vault      # same thing, straight from /v2/accounts"
+        ;;
+    3)
+        echo "  chain      # the tip advanced; each step is a real mined block"
+        echo "  balances   # unchanged: a read costs a fee but moves nothing"
+        ;;
+    4)
+        echo "  oracle     # call-read the Clarity fn the EVM is about to read"
+        echo "  src \$ORACLE # its Clarity source, as stored on chain"
+        ;;
+    5)
+        echo "  oracle     # the EVM just read exactly this value (u42)"
+        ;;
+    6)
+        echo "  src \$CALLER # real (evm-call? ...) Clarity source, on chain"
+        echo "  balances   # the Clarity contract paid the EVM from its OWN balance"
+        ;;
+    7)
+        echo "  balances   # vault holds 5 STX (from the EVM) + 1 STX (from Clarity)"
+        ;;
+    8)
+        echo "  balances   # the revert moved nothing"
+        echo "  sender     # ...but the nonce still advanced (fee paid)"
+        ;;
+    *)
+        echo "  balances ; chain"
+        ;;
+    esac
+}
+
 help() {
     cat <<'EOF'
 EVM-on-Stacks demo -- RPC pane
 
-  addrs      show every address the demo has published so far
-  chain      chain tip / epoch summary            (GET /v2/info)
-  sender     the demo sender's balance + nonce    (GET /v2/accounts)
-  vault      the EVM contract's STX balance       <- "1 wei == 1 uSTX"
-  caller     the Clarity contract driving the EVM (its balance funds msg.value)
+  step       what to run right now (tracks the demo's current step)  <- start here
+  balances   one table: sender / EVM contract / Clarity contract, in uSTX
+  addrs      every address the demo has published so far
+  chain      chain tip / epoch summary             (GET /v2/info)
+  vault      the EVM contract's STX balance        <- "1 wei == 1 uSTX"
+  caller     the Clarity contract driving the EVM  (its balance funds msg.value)
+  sender     the demo sender's balance + nonce     (GET /v2/accounts)
   oracle     read the Clarity oracle the EVM calls (POST call-read)
+  src [id]   a contract's Clarity source, on chain (GET /v2/contracts/source)
   acct <p>   balance + nonce for any principal
   tx <txid>  fetch a transaction
-  help       this message
+  watch-balances   live balance table (Ctrl-c to stop)
 
-Suggested moments to run these (while the demo is paused for Enter):
-  after STEP 1  -> addrs ; vault      (contract exists, balance still 0)
-  after STEP 2  -> vault ; sender     (5 STX moved into the EVM contract)
-  after STEP 4  -> oracle             (the Clarity value the EVM will read)
-  after STEP 6  -> caller ; vault     (Clarity paid the EVM out of its own balance)
+The walkthrough pane prints the commands worth running at each pause; `step`
+repeats them here.
 EOF
 }
 

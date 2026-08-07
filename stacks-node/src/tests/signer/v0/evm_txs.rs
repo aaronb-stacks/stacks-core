@@ -430,6 +430,17 @@ mod demo_ui {
     pub fn ok(msg: &str) {
         eprintln!("  {GREEN}{BOLD}[ok]{RESET} {msg}");
     }
+
+    /// Print the RPC-pane commands worth running at this pause, as
+    /// `(command, why)` pairs. The bottom pane of the tmux demo can run
+    /// these against the live node while the walkthrough is stopped.
+    pub fn suggest(cmds: &[(&str, &str)]) {
+        eprintln!();
+        eprintln!("  {DIM}--- try in the RPC pane (bottom) ---{RESET}");
+        for (cmd, why) in cmds {
+            eprintln!("  {CYAN}{BOLD}{cmd:<10}{RESET} {DIM}{why}{RESET}");
+        }
+    }
     pub fn info(msg: &str) {
         eprintln!("  {BLUE}>{RESET} {msg}");
     }
@@ -588,6 +599,17 @@ fn evm_demo() {
     );
     p.render();
     ok("A single Stacks key controls both the Stacks and EVM address.");
+    demo_note("STEP", "0");
+    suggest(&[
+        (
+            "chain",
+            "epoch 3.3 and the tip height -- a real booted chain",
+        ),
+        (
+            "balances",
+            "the sender is funded; no EVM contracts exist yet",
+        ),
+    ]);
     wait("press Enter to deploy an EVM contract");
 
     // --- step 1: deploy vault -------------------------------------------
@@ -614,6 +636,14 @@ fn evm_demo() {
     p.render();
     demo_note("VAULT_EVM", &format!("0x{}", to_hex(&vault.0)));
     ok("Deployed in a real signer-approved Nakamoto block; code lives in the MARF.");
+    demo_note("STEP", "1");
+    suggest(&[
+        ("addrs", "the EVM contract now has a Stacks principal"),
+        (
+            "balances",
+            "...and its balance is still 0 -- nothing sent yet",
+        ),
+    ]);
     wait("press Enter to call it with 5 STX attached");
 
     // --- step 2: write + value transfer ---------------------------------
@@ -655,6 +685,14 @@ fn evm_demo() {
     ok("msg.value moved real STX to the contract's own Stacks principal:");
     demo_note("VAULT", &vault_addr.to_string());
     info(&vault_addr.to_string());
+    demo_note("STEP", "2");
+    suggest(&[
+        (
+            "balances",
+            "5 STX now sits in the EVM contract -- 1 wei == 1 uSTX",
+        ),
+        ("vault", "the same, straight from /v2/accounts"),
+    ]);
     wait("press Enter to read the stored value back");
 
     // --- step 3: read path ----------------------------------------------
@@ -675,6 +713,17 @@ fn evm_demo() {
     );
     p.render();
     ok("EVM contract storage persisted across transactions, in the MARF.");
+    demo_note("STEP", "3");
+    suggest(&[
+        (
+            "chain",
+            "the tip advanced -- every step is a real mined block",
+        ),
+        (
+            "balances",
+            "unchanged: a read costs a fee but moves nothing",
+        ),
+    ]);
     wait("press Enter to deploy a Clarity contract");
 
     // --- step 4: deploy Clarity oracle ----------------------------------
@@ -690,6 +739,14 @@ fn evm_demo() {
     p.kv("contract", format!("{GREEN}{oracle_id}{RESET}"));
     p.render();
     ok("A plain Clarity contract, deployed the normal way.");
+    demo_note("STEP", "4");
+    suggest(&[
+        (
+            "oracle",
+            "call-read the Clarity fn the EVM is about to read",
+        ),
+        ("src $ORACLE", "its Clarity source, as stored on chain"),
+    ]);
     wait("press Enter for the headline: an EVM contract reading Clarity");
 
     // --- step 5: clarity-read bridge ------------------------------------
@@ -741,6 +798,11 @@ fn evm_demo() {
     p.render();
     ok("An EVM contract just read live Clarity state through the precompile,");
     info("with the Clarity execution cost charged against the EVM gas limit.");
+    demo_note("STEP", "5");
+    suggest(&[(
+        "oracle",
+        "the EVM just read exactly this value, through the precompile",
+    )]);
     wait("press Enter for the other direction: Clarity calling the EVM");
 
     // --- step 6: the reverse bridge, Clarity -> EVM ----------------------
@@ -798,6 +860,17 @@ fn evm_demo() {
     ok("A Clarity contract just drove the EVM: storage written, STX moved.");
     info("msg.sender is the calling contract -- never tx-sender -- so a callee");
     info("can never spend a user's STX through this path.");
+    demo_note("STEP", "6");
+    suggest(&[
+        (
+            "src $CALLER",
+            "real (evm-call? ...) Clarity source, on chain",
+        ),
+        (
+            "balances",
+            "the Clarity contract paid the EVM from its OWN balance",
+        ),
+    ]);
     wait("press Enter to read the EVM value the Clarity contract wrote");
 
     // --- step 7: confirm the Clarity-initiated write landed --------------
@@ -821,6 +894,11 @@ fn evm_demo() {
     );
     p.render();
     ok("Both VMs share one state tree; either can write the same EVM contract.");
+    demo_note("STEP", "7");
+    suggest(&[(
+        "balances",
+        "the vault holds 5 STX (from the EVM) + 1 STX (from Clarity)",
+    )]);
     wait("press Enter to see a revert");
 
     // --- step 8: revert semantics ---------------------------------------
@@ -856,6 +934,14 @@ fn evm_demo() {
     p.kv("nonce", format!("{nonce_before} -> {nonce}  (consumed)"));
     p.render();
     ok("A revert is a mined transaction: nonce advances, no state changes.");
+    demo_note("STEP", "8");
+    suggest(&[
+        ("balances", "the revert moved nothing"),
+        (
+            "sender",
+            "...but the nonce still advanced -- the fee was paid",
+        ),
+    ]);
     wait("press Enter to finish");
 
     let bar = "=".repeat(74);
