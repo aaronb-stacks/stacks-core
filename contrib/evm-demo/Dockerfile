@@ -8,8 +8,11 @@
 # to Epoch 3.3, driven through EvmPublish / EvmContractCall / clarity-read.
 #
 #   podman build -t evm-demo -f contrib/evm-demo/Dockerfile .
-#   podman run --rm -it evm-demo 1>node.log   # panels on screen (stderr),
-#                                             # full logs captured to node.log
+#   podman run --rm -it evm-demo              # three-pane tmux demo
+#
+# tmux needs a TTY, so use -it here. The stdout/stderr split happens inside
+# the container (see tmux-demo.sh), so the pseudo-TTY merging the container's
+# own streams no longer matters.
 #
 # Root is used only for system setup (building/installing bitcoind and
 # creating an unprivileged user); it is dropped with `USER` *before* the
@@ -33,6 +36,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential libtool autotools-dev automake pkg-config bsdmainutils \
       python3 libsqlite3-dev libevent-dev libboost-dev curl wget ca-certificates \
+      tmux jq less procps \
  && rm -rf /var/lib/apt/lists/*
 RUN wget -q "https://github.com/bitcoin/bitcoin/archive/refs/tags/v${BITCOIN_VERSION}.tar.gz" \
  && echo "${BITCOIN_SHA512}  v${BITCOIN_VERSION}.tar.gz" | sha512sum -c --strict \
@@ -62,4 +66,7 @@ RUN cargo test -p stacks-node --no-run
 
 ENV BITCOIND_TEST=1
 ENV RUST_BACKTRACE=1
-ENTRYPOINT ["bash", "/src/contrib/evm-demo/run-demo.sh"]
+# Three-pane tmux demo (walkthrough | node logs / RPC shell). Override with
+# `--entrypoint bash` for a plain shell, or run run-demo.sh for the
+# single-stream version.
+ENTRYPOINT ["bash", "/src/contrib/evm-demo/tmux-demo.sh"]

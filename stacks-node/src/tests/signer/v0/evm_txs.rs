@@ -502,6 +502,23 @@ const DEMO_CALLER_CODE: &str = r#"
   (evm-call? addr word value u1000000))
 "#;
 
+/// Publish a `KEY=value` line to the file named by `EVM_DEMO_RPC_FILE`, if
+/// set. The tmux demo wrapper points this at a file its RPC pane sources, so
+/// an operator can `curl` the node for the very addresses the demo is
+/// creating while it is paused between steps. A no-op otherwise.
+fn demo_note(key: &str, value: &str) {
+    let Ok(path) = env::var("EVM_DEMO_RPC_FILE") else {
+        return;
+    };
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(file, "{key}={value}");
+    }
+}
+
 #[tag(bitcoind)]
 #[test]
 #[ignore]
@@ -541,6 +558,10 @@ fn evm_demo() {
     let http = signer_test.running_nodes.rpc_origin();
     let chain_id = signer_test.running_nodes.conf.burnchain.chain_id;
     signer_test.mine_nakamoto_block(Duration::from_secs(30), true);
+
+    // publish the endpoint and sender for the tmux demo's RPC pane
+    demo_note("NODE", &http);
+    demo_note("SENDER", &sender_addr.to_string());
 
     let mut nonce: u64 = 0;
     // Submit an EVM/Clarity payload and block until the miner includes it.
@@ -591,6 +612,7 @@ fn evm_demo() {
         format!("{GREEN}0x{}{RESET}", to_hex(&vault.0)),
     );
     p.render();
+    demo_note("VAULT_EVM", &format!("0x{}", to_hex(&vault.0)));
     ok("Deployed in a real signer-approved Nakamoto block; code lives in the MARF.");
     wait("press Enter to call it with 5 STX attached");
 
@@ -631,6 +653,7 @@ fn evm_demo() {
     ));
     p.render();
     ok("msg.value moved real STX to the contract's own Stacks principal:");
+    demo_note("VAULT", &vault_addr.to_string());
     info(&vault_addr.to_string());
     wait("press Enter to read the stored value back");
 
@@ -658,6 +681,7 @@ fn evm_demo() {
     let txid =
         submit!(TransactionPayload::new_smart_contract("oracle", DEMO_ORACLE_CODE, None).unwrap());
     let oracle_id = format!("{sender_addr}.oracle");
+    demo_note("ORACLE", &oracle_id);
     assert_eq!(get_tx_status_by_id(&txid).as_deref(), Some("success"));
     let mut p = step(4, "SmartContract - deploy a normal Clarity contract");
     p.line(format!("{DIM}Clarity:{RESET}"));
@@ -726,6 +750,7 @@ fn evm_demo() {
         );
     assert_eq!(get_tx_status_by_id(&txid).as_deref(), Some("success"));
     let caller_id = format!("{sender_addr}.evm-caller");
+    demo_note("CALLER", &caller_id);
 
     // fund the calling contract: `evm-call?` draws msg.value from the
     // *calling contract's* balance, never from tx-sender

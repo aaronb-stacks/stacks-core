@@ -37,24 +37,66 @@ proposals, real signer signatures, real block production — not a simulation.
 # from the repository root
 podman build -t evm-demo -f contrib/evm-demo/Dockerfile .
 
-# press Enter to advance each step; capture stdout so the terminal shows
-# only the walkthrough panels while full logs land in node.log.
-# NOTE: -i WITHOUT -t (see below).
-podman run --rm -i evm-demo 1>node.log
+# three-pane tmux demo
+podman run --rm -it evm-demo
 ```
 
-The walkthrough panels are written to **stderr** and the node/signer/bitcoind
-logs to **stdout** (in a test build the stacks logger owns stdout). Redirecting
-stdout to a file therefore leaves a clean panel view on the terminal while
-preserving every log line in `node.log` for debugging. Stepping still works
-under plain `-i`: stdin stays connected, so pressing Enter advances each step;
-with no stdin at all the demo auto-advances.
+This opens a tmux window with three panes:
 
-**Use `-i`, not `-it`, when capturing.** The `-t` flag allocates a pseudo-TTY
-that merges stdout and stderr onto one stream, which defeats the `1>node.log`
-split (everything, panels included, ends up together). If you don't care about
-separating them, `podman run --rm -it evm-demo` shows panels and logs
-interleaved on one screen.
+```
++---------------------------+---------------------------+
+|  demo walkthrough         |  node / signer / bitcoind |
+|  (stderr)                 |  logs (stdout)            |
+|  <- press Enter here      |                           |
++---------------------------+---------------------------+
+|  RPC shell: curl + jq against the running node        |
++-------------------------------------------------------+
+```
+
+**Focus the top-left pane and press Enter to advance each step.** Switch panes
+with `Ctrl-b` then an arrow key (mouse clicks work too). While the demo is
+paused between steps, use the bottom pane to query the live node and show what
+just happened on-chain.
+
+The walkthrough is written to **stderr** and the logs to **stdout** (in a test
+build the stacks logger owns stdout); `tmux-demo.sh` redirects stdout to a log
+file inside the container, which is why `-it` is fine here even though a
+pseudo-TTY merges the container's own streams.
+
+### The RPC pane
+
+The running demo publishes its endpoint and every address it creates into
+`/tmp/evm-demo/rpc.env`, which the helper commands re-read on each call, so
+addresses become available as soon as the demo reaches the step that creates
+them. Type `help` in that pane for the list. The most useful ones:
+
+| command | shows |
+|---|---|
+| `addrs` | every address the demo has published so far |
+| `chain` | chain tip / epoch (`GET /v2/info`) |
+| `vault` | the EVM contract's **STX balance** — the "1 wei == 1 uSTX" proof |
+| `sender` | the demo sender's balance + nonce |
+| `caller` | the Clarity contract that drives the EVM (its balance funds `msg.value`) |
+| `oracle` | read the Clarity oracle the EVM reads through the precompile |
+| `acct <principal>` / `tx <txid>` | any account / transaction |
+
+Good moments to run them, while paused:
+
+- after **STEP 1** → `addrs`, `vault` (contract exists, balance still 0)
+- after **STEP 2** → `vault`, `sender` (5 STX moved into the EVM contract)
+- after **STEP 4** → `oracle` (the Clarity value the EVM is about to read)
+- after **STEP 6** → `caller`, `vault` (Clarity paid the EVM from its own balance)
+
+### Single-stream alternative
+
+For a plain, non-tmux run (no RPC pane):
+
+```sh
+podman run --rm -i --entrypoint bash evm-demo /src/contrib/evm-demo/run-demo.sh 1>node.log
+```
+
+Here use `-i` **without** `-t`: a pseudo-TTY would merge stdout and stderr and
+defeat the `1>node.log` split.
 
 ## Requirements & notes
 
