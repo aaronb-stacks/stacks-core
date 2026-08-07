@@ -839,7 +839,9 @@ impl BlockBuilder for NakamotoBlockBuilder {
 
         let non_boot_code_contract_call = match &tx.payload {
             TransactionPayload::ContractCall(cc) => !cc.address.is_boot_code_addr(),
-            TransactionPayload::SmartContract(..) => true,
+            TransactionPayload::SmartContract(..)
+            | TransactionPayload::EvmPublish(..)
+            | TransactionPayload::EvmContractCall(..) => true,
             _ => false,
         };
 

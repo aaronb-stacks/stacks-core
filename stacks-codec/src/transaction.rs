@@ -36,7 +36,8 @@ use stacks_common::address::{
     C32_ADDRESS_VERSION_TESTNET_MULTISIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
 };
 use stacks_common::codec::{
-    read_next, write_next, Error as codec_error, StacksMessageCodec, MAX_MESSAGE_LEN,
+    read_next, read_next_at_most, write_next, Error as codec_error, StacksMessageCodec,
+    MAX_MESSAGE_LEN,
 };
 use stacks_common::types::chainstate::{
     BlockHeaderHash, ConsensusHash, StacksAddress, StacksBlockId, StacksPrivateKey,
@@ -536,7 +537,9 @@ define_u8_enum!(TransactionPayloadID {
     VersionedSmartContract = 6,
     TenureChange = 7,
     // has a VRF proof, and may have an alt principal
-    NakamotoCoinbase = 8
+    NakamotoCoinbase = 8,
+    EvmPublish = 9,
+    EvmContractCall = 10
 });
 
 /// numeric wire-format ID of an asset info type variant
@@ -2157,6 +2160,80 @@ impl StacksMessageCodec for TransactionSmartContract {
     }
 }
 
+/// Maximum length in bytes of the EVM init code in an `EvmPublish` payload
+pub const MAX_EVM_CODE_LEN: u32 = 65536;
+/// Maximum length in bytes of the EVM calldata in an `EvmContractCall` payload
+pub const MAX_EVM_CALLDATA_LEN: u32 = 65536;
+
+/// A transaction that publishes an EVM smart contract
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TransactionEvmPublish {
+    /// EVM gas limit for running the init code
+    pub gas_limit: u64,
+    /// uSTX endowment sent to the new contract as its EVM msg.value (1 wei = 1 uSTX)
+    pub value: u64,
+    /// EVM init code, with any constructor arguments appended per EVM convention
+    pub code: Vec<u8>,
+}
+
+impl StacksMessageCodec for TransactionEvmPublish {
+    fn consensus_serialize<W: Write>(&self, fd: &mut W) -> Result<(), codec_error> {
+        write_next(fd, &self.gas_limit)?;
+        write_next(fd, &self.value)?;
+        write_next(fd, &self.code)?;
+        Ok(())
+    }
+
+    fn consensus_deserialize<R: Read>(fd: &mut R) -> Result<TransactionEvmPublish, codec_error> {
+        let gas_limit: u64 = read_next(fd)?;
+        let value: u64 = read_next(fd)?;
+        let code: Vec<u8> = read_next_at_most(fd, MAX_EVM_CODE_LEN)?;
+        Ok(TransactionEvmPublish {
+            gas_limit,
+            value,
+            code,
+        })
+    }
+}
+
+/// A transaction that calls a published EVM smart contract
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TransactionEvmContractCall {
+    /// 20-byte EVM address of the contract being called
+    pub address: Hash160,
+    /// EVM gas limit
+    pub gas_limit: u64,
+    /// uSTX sent to the callee as its EVM msg.value (1 wei = 1 uSTX)
+    pub value: u64,
+    /// ABI-encoded calldata
+    pub calldata: Vec<u8>,
+}
+
+impl StacksMessageCodec for TransactionEvmContractCall {
+    fn consensus_serialize<W: Write>(&self, fd: &mut W) -> Result<(), codec_error> {
+        write_next(fd, &self.address)?;
+        write_next(fd, &self.gas_limit)?;
+        write_next(fd, &self.value)?;
+        write_next(fd, &self.calldata)?;
+        Ok(())
+    }
+
+    fn consensus_deserialize<R: Read>(
+        fd: &mut R,
+    ) -> Result<TransactionEvmContractCall, codec_error> {
+        let address: Hash160 = read_next(fd)?;
+        let gas_limit: u64 = read_next(fd)?;
+        let value: u64 = read_next(fd)?;
+        let calldata: Vec<u8> = read_next_at_most(fd, MAX_EVM_CALLDATA_LEN)?;
+        Ok(TransactionEvmContractCall {
+            address,
+            gas_limit,
+            value,
+            calldata,
+        })
+    }
+}
+
 /// Encoding of an asset type identifier
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AssetInfo {
@@ -2688,6 +2765,8 @@ pub enum TransactionPayload {
     PoisonMicroblock(StacksMicroblockHeader, StacksMicroblockHeader),
     Coinbase(CoinbasePayload, Option<PrincipalData>, Option<VRFProof>),
     TenureChange(TenureChangePayload),
+    EvmPublish(TransactionEvmPublish),
+    EvmContractCall(TransactionEvmContractCall),
 }
 
 impl TransactionPayload {
@@ -2719,6 +2798,8 @@ impl TransactionPayload {
                 TenureChangeCause::ExtendedWriteCount => "TenureChange(ExtendWriteCount)",
                 TenureChangeCause::ExtendedWriteLength => "TenureChange(ExtendWriteLength)",
             },
+            TransactionPayload::EvmPublish(..) => "EvmPublish",
+            TransactionPayload::EvmContractCall(..) => "EvmContractCall",
         }
     }
 
@@ -2871,6 +2952,14 @@ impl StacksMessageCodec for TransactionPayload {
                 write_next(fd, &(TransactionPayloadID::TenureChange as u8))?;
                 tc.consensus_serialize(fd)?;
             }
+            TransactionPayload::EvmPublish(ep) => {
+                write_next(fd, &(TransactionPayloadID::EvmPublish as u8))?;
+                ep.consensus_serialize(fd)?;
+            }
+            TransactionPayload::EvmContractCall(ec) => {
+                write_next(fd, &(TransactionPayloadID::EvmContractCall as u8))?;
+                ec.consensus_serialize(fd)?;
+            }
         }
         Ok(())
     }
@@ -2962,6 +3051,14 @@ impl StacksMessageCodec for TransactionPayload {
             TransactionPayloadID::TenureChange => {
                 let payload: TenureChangePayload = read_next(fd)?;
                 TransactionPayload::TenureChange(payload)
+            }
+            TransactionPayloadID::EvmPublish => {
+                let payload: TransactionEvmPublish = read_next(fd)?;
+                TransactionPayload::EvmPublish(payload)
+            }
+            TransactionPayloadID::EvmContractCall => {
+                let payload: TransactionEvmContractCall = read_next(fd)?;
+                TransactionPayload::EvmContractCall(payload)
             }
         };
 
@@ -4517,6 +4614,8 @@ mod tests {
         assert_eq!(TransactionPayloadID::VersionedSmartContract as u8, 0x06);
         assert_eq!(TransactionPayloadID::TenureChange as u8, 0x07);
         assert_eq!(TransactionPayloadID::NakamotoCoinbase as u8, 0x08);
+        assert_eq!(TransactionPayloadID::EvmPublish as u8, 0x09);
+        assert_eq!(TransactionPayloadID::EvmContractCall as u8, 0x0a);
     }
 
     /// `chain_id` is serialized as a 4-byte big-endian field directly after the

@@ -6879,6 +6879,54 @@ impl StacksChainState {
             TransactionPayload::TenureChange(..) => {
                 return Err(MemPoolRejection::NoTenureChangeViaMempool)
             }
+            TransactionPayload::EvmPublish(payload) => {
+                // does the owner have the funds for the endowment?
+                let total_spent =
+                    u128::from(payload.value) + if origin == payer { u128::from(fee) } else { 0 };
+                if !origin.stx_balance.can_transfer_at_burn_block(
+                    total_spent,
+                    block_height,
+                    v1_unlock_height,
+                    v2_unlock_height,
+                    v3_unlock_height,
+                    v4_unlock_height,
+                )? {
+                    return Err(MemPoolRejection::NotEnoughFunds(
+                        total_spent,
+                        origin.stx_balance.get_available_balance_at_burn_block(
+                            block_height,
+                            v1_unlock_height,
+                            v2_unlock_height,
+                            v3_unlock_height,
+                            v4_unlock_height,
+                        )?,
+                    ));
+                }
+            }
+            TransactionPayload::EvmContractCall(payload) => {
+                // does the owner have the funds for the value transfer?
+                let total_spent =
+                    u128::from(payload.value) + if origin == payer { u128::from(fee) } else { 0 };
+                if !origin.stx_balance.can_transfer_at_burn_block(
+                    total_spent,
+                    block_height,
+                    v1_unlock_height,
+                    v2_unlock_height,
+                    v3_unlock_height,
+                    v4_unlock_height,
+                )? {
+                    return Err(MemPoolRejection::NotEnoughFunds(
+                        total_spent,
+                        origin.stx_balance.get_available_balance_at_burn_block(
+                            block_height,
+                            v1_unlock_height,
+                            v2_unlock_height,
+                            v3_unlock_height,
+                            v4_unlock_height,
+                        )?,
+                    ));
+                }
+            }
         };
 
         Ok(())

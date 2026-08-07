@@ -32,6 +32,7 @@ use stacks_common::util::vrf::*;
 
 use crate::chainstate::burn::operations::*;
 use crate::chainstate::burn::{ConsensusHash, *};
+use crate::chainstate::stacks::db::evm::EVM_TX_GAS_CAP;
 use crate::chainstate::stacks::db::StacksBlockHeaderTypes;
 use crate::chainstate::stacks::{Error, StacksBlockHeader, StacksMicroblockHeader, *};
 use crate::core::*;
@@ -635,6 +636,24 @@ impl StacksBlock {
         if let TransactionPayload::TenureChange(..) = &tx.payload {
             if epoch_id < StacksEpochId::Epoch30 {
                 error!("TenureChange transaction not supported before Stacks 3.0"; "txid" => %tx.txid());
+                return false;
+            }
+        }
+        if matches!(
+            &tx.payload,
+            TransactionPayload::EvmPublish(..) | TransactionPayload::EvmContractCall(..)
+        ) {
+            if !epoch_id.supports_evm() {
+                error!("EVM transaction not supported in epoch {epoch_id}"; "txid" => %tx.txid());
+                return false;
+            }
+            let gas_limit = match &tx.payload {
+                TransactionPayload::EvmPublish(payload) => payload.gas_limit,
+                TransactionPayload::EvmContractCall(payload) => payload.gas_limit,
+                _ => unreachable!(),
+            };
+            if gas_limit > EVM_TX_GAS_CAP {
+                error!("EVM transaction gas limit {gas_limit} exceeds cap {EVM_TX_GAS_CAP}"; "txid" => %tx.txid());
                 return false;
             }
         }

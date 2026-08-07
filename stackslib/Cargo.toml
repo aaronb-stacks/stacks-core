@@ -39,6 +39,7 @@ pox-locking = { path = "../pox-locking" }
 libstackerdb = { path = "../libstackerdb" }
 siphasher = "0.3.7"
 rusqlite = { workspace = true }
+revm = { workspace = true }
 time = "0.3.41"
 toml = { workspace = true }
 

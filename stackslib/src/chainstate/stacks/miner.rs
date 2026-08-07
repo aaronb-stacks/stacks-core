@@ -1162,7 +1162,9 @@ impl<'a> StacksMicroblockBuilder<'a> {
                             );
                         }
                     }
-                    TransactionPayload::SmartContract(..) => {
+                    TransactionPayload::SmartContract(..)
+                    | TransactionPayload::EvmPublish(..)
+                    | TransactionPayload::EvmContractCall(..) => {
                         return TransactionResult::skipped(
                             &tx,
                             "BlockLimitFunction::CONTRACT_LIMIT_HIT".to_string(),
@@ -2556,7 +2558,9 @@ impl BlockBuilder for StacksBlockBuilder {
                             );
                         }
                     }
-                    TransactionPayload::SmartContract(..) => {
+                    TransactionPayload::SmartContract(..)
+                    | TransactionPayload::EvmPublish(..)
+                    | TransactionPayload::EvmContractCall(..) => {
                         return TransactionResult::skipped(
                             tx,
                             "BlockLimitFunction::CONTRACT_LIMIT_HIT".to_string(),

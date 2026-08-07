@@ -628,6 +628,12 @@ impl StacksEpochId {
         self < &StacksEpochId::Epoch40
     }
 
+    /// Whether or not this epoch accepts the experimental EVM transaction
+    /// payloads (`EvmPublish` and `EvmContractCall`).
+    pub fn supports_evm(&self) -> bool {
+        self >= &StacksEpochId::Epoch33
+    }
+
     /// Returns true for epochs which use Nakamoto blocks. These blocks use a
     /// different header format than the previous Stacks blocks, which among
     /// other changes includes a Stacks-specific timestamp.

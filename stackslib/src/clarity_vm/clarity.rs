@@ -22,7 +22,7 @@ use clarity::vm::analysis::AnalysisDatabase;
 use clarity::vm::clarity::TransactionConnection;
 pub use clarity::vm::clarity::{ClarityConnection, ClarityError};
 use clarity::vm::contexts::{AssetMap, OwnedEnvironment};
-use clarity::vm::costs::{CostTracker, ExecutionCost, LimitedCostTracker};
+use clarity::vm::costs::{CostErrors, CostTracker, ExecutionCost, LimitedCostTracker};
 use clarity::vm::database::{
     BurnStateDB, ClarityBackingStore, ClarityDatabase, ClarityExecutionCache, HeadersDB,
     RollbackWrapper, RollbackWrapperPersistedLog, STXBalance, NULL_BURN_STATE_DB, NULL_HEADER_DB,
@@ -2537,6 +2537,26 @@ impl ClarityTransactionConnection<'_, '_> {
 
     pub fn is_mainnet(&self) -> bool {
         return self.mainnet;
+    }
+
+    pub fn chain_id(&self) -> u32 {
+        self.chain_id
+    }
+
+    /// Charge an externally-metered execution cost (e.g. converted EVM gas)
+    /// against this transaction's cost tracker, so it counts toward the
+    /// block budget like any Clarity execution cost.
+    pub fn add_external_cost(&mut self, cost: ExecutionCost) -> Result<(), ClarityError> {
+        self.cost_track
+            .as_mut()
+            .expect("BUG: Transaction connection lost cost_tracker handle.")
+            .add_cost(cost)
+            .map_err(|e| match e {
+                CostErrors::CostBalanceExceeded(total, limit) => {
+                    ClarityError::CostError(total, limit)
+                }
+                other => ClarityError::from(VmExecutionError::from(other)),
+            })
     }
 
     /// Commit the changes from the edit log.

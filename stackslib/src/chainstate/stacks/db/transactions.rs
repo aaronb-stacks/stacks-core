@@ -31,7 +31,7 @@ use clarity::vm::types::{
 };
 
 use crate::chainstate::nakamoto::miner::MinerTenureInfoCause;
-use crate::chainstate::stacks::db::*;
+use crate::chainstate::stacks::db::{evm, *};
 use crate::chainstate::stacks::miner::{TransactionResourceBudgets, TransactionResult};
 use crate::chainstate::stacks::{Error, StacksMicroblockHeader};
 use crate::clarity_vm::clarity::{ClarityConnection, ClarityError, ClarityTransactionConnection};
@@ -175,6 +175,28 @@ impl StacksTransactionReceipt {
             microblock_header: None,
             tx_index: 0,
             vm_error: Some(reason),
+            problematic_skipped: None,
+        }
+    }
+
+    pub fn from_evm(
+        tx: StacksTransaction,
+        events: Vec<StacksTransactionEvent>,
+        result: Value,
+        cost: ExecutionCost,
+        vm_error: Option<String>,
+    ) -> StacksTransactionReceipt {
+        StacksTransactionReceipt {
+            transaction: tx.into(),
+            post_condition_aborted: false,
+            events,
+            result,
+            stx_burned: 0,
+            contract_analysis: None,
+            execution_cost: cost,
+            microblock_header: None,
+            tx_index: 0,
+            vm_error,
             problematic_skipped: None,
         }
     }
@@ -1828,6 +1850,91 @@ impl StacksChainState {
                 }
 
                 let receipt = StacksTransactionReceipt::from_tenure_change(tx.clone());
+                Ok(receipt)
+            }
+            TransactionPayload::EvmPublish(..) | TransactionPayload::EvmContractCall(..) => {
+                // post-conditions are not supported for EVM transactions
+                if !tx.post_conditions.is_empty() {
+                    let msg = "Invalid Stacks transaction: EVM transactions do not support post-conditions".to_string();
+                    info!("{}", &msg; "txid" => %tx.txid());
+                    return Err(Error::InvalidStacksTransaction(msg, false));
+                }
+
+                // defensive check -- EVM payloads must be supported in this epoch.
+                // This should get caught earlier by the static epoch checks, but
+                // this is kept here as an added layer of redundancy.
+                let epoch_id = clarity_tx.get_epoch();
+                if !epoch_id.supports_evm() {
+                    let msg = format!(
+                        "Invalid Stacks transaction: EVM transactions are not supported in epoch {epoch_id}"
+                    );
+                    info!("{msg}");
+                    return Err(Error::InvalidStacksTransaction(msg, false));
+                }
+
+                let mainnet = clarity_tx.is_mainnet();
+                let chain_id = clarity_tx.chain_id();
+                let cost_before = clarity_tx.cost_so_far();
+
+                let outcome = clarity_tx
+                    .with_clarity_db(|db| match &tx.payload {
+                        TransactionPayload::EvmPublish(payload) => evm::run_evm_publish(
+                            db,
+                            mainnet,
+                            chain_id,
+                            &origin_account.principal,
+                            payload,
+                        ),
+                        TransactionPayload::EvmContractCall(payload) => evm::run_evm_call(
+                            db,
+                            mainnet,
+                            chain_id,
+                            &origin_account.principal,
+                            payload,
+                        ),
+                        _ => unreachable!("BUG: non-EVM payload in EVM dispatch arm"),
+                    })
+                    .map_err(Error::ClarityError)?;
+
+                // charge the consumed EVM gas against the block budget
+                let evm_cost = ExecutionCost::runtime(
+                    outcome.gas_used.saturating_mul(evm::EVM_GAS_TO_RUNTIME),
+                );
+                clarity_tx.add_external_cost(evm_cost).map_err(|e| match e {
+                    ClarityError::CostError(cost_after, budget) => {
+                        warn!("Block compute budget exceeded by EVM transaction: if included, this will invalidate a block";
+                              "txid" => %tx.txid(), "cost" => %cost_after, "budget" => %budget);
+                        Error::CostOverflowError(cost_before.clone(), cost_after, budget)
+                    }
+                    other => Error::ClarityError(other),
+                })?;
+
+                let mut total_cost = clarity_tx.cost_so_far();
+                total_cost
+                    .sub(&cost_before)
+                    .expect("BUG: total block cost decreased");
+
+                info!("EVM transaction processed";
+                      "txid" => %tx.txid(),
+                      "origin" => %origin_account.principal,
+                      "origin_nonce" => %origin_account.nonce,
+                      "payload" => %tx.payload.name(),
+                      "succeeded" => outcome.succeeded,
+                      "gas_used" => outcome.gas_used,
+                      "created_address" => ?outcome.created_address);
+
+                let vm_error = if outcome.succeeded {
+                    None
+                } else {
+                    Some("EVM execution reverted or halted".to_string())
+                };
+                let receipt = StacksTransactionReceipt::from_evm(
+                    tx.clone(),
+                    outcome.events,
+                    outcome.result,
+                    total_cost,
+                    vm_error,
+                );
                 Ok(receipt)
             }
         }

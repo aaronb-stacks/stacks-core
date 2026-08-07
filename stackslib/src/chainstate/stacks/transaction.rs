@@ -937,6 +937,16 @@ mod test {
                 };
                 TransactionPayload::TenureChange(corrupt_tc)
             }
+            TransactionPayload::EvmPublish(ref ep) => {
+                let mut corrupt_ep = ep.clone();
+                corrupt_ep.gas_limit += 1;
+                TransactionPayload::EvmPublish(corrupt_ep)
+            }
+            TransactionPayload::EvmContractCall(ref ec) => {
+                let mut corrupt_ec = ec.clone();
+                corrupt_ec.gas_limit += 1;
+                TransactionPayload::EvmContractCall(corrupt_ec)
+            }
         };
         assert!(corrupt_tx_payload.txid() != signed_tx.txid());
 

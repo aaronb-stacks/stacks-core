@@ -422,9 +422,10 @@ pub use stacks_codec::transaction::{
     StacksTransaction, TenureChangeCause, TenureChangeError, TenureChangePayload,
     TokenTransferMemo, TransactionAnchorMode, TransactionAuth, TransactionAuthField,
     TransactionAuthFieldID, TransactionAuthFlags, TransactionAuthVerificationMode,
-    TransactionContractCall, TransactionPayload, TransactionPayloadID, TransactionPostCondition,
-    TransactionPostConditionMode, TransactionPublicKeyEncoding, TransactionSmartContract,
-    TransactionSpendingCondition, TransactionVersion,
+    TransactionContractCall, TransactionEvmContractCall, TransactionEvmPublish, TransactionPayload,
+    TransactionPayloadID, TransactionPostCondition, TransactionPostConditionMode,
+    TransactionPublicKeyEncoding, TransactionSmartContract, TransactionSpendingCondition,
+    TransactionVersion, MAX_EVM_CALLDATA_LEN, MAX_EVM_CODE_LEN,
 };
 
 #[derive(Debug, Clone, PartialEq)]

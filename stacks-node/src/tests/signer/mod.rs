@@ -1801,6 +1801,7 @@ fn setup_stx_btc_node<G: FnMut(&mut NeonConfig)>(
             EventKeyType::MinedBlocks,
             EventKeyType::BurnchainBlocks,
             EventKeyType::MemPoolTransactions,
+            EventKeyType::AnyEvent,
         ],
         timeout_ms: 1000,
         disable_retries: false,
