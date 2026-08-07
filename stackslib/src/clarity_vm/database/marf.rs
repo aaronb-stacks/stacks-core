@@ -23,13 +23,16 @@ use clarity::vm::database::sqlite::{
     sqlite_get_contract_hash, sqlite_get_metadata, sqlite_get_metadata_manual,
     sqlite_insert_metadata,
 };
-use clarity::vm::database::{ClarityBackingStore, SpecialCaseHandler, SqliteConnection};
+use clarity::vm::database::{
+    ClarityBackingStore, EvmCallHandler, SpecialCaseHandler, SqliteConnection,
+};
 use clarity::vm::errors::{IncomparableError, RuntimeError, VmExecutionError, VmInternalError};
 use clarity::vm::types::QualifiedContractIdentifier;
 use rusqlite::Connection;
 use stacks_common::codec::StacksMessageCodec;
 use stacks_common::types::chainstate::{BlockHeaderHash, StacksBlockId, TrieHash};
 
+use crate::chainstate::stacks::db::evm::clarity_call::handle_evm_call;
 use crate::chainstate::stacks::index::marf::{
     test_override_marf_compression, MARFOpenOpts, MarfConnection, MarfTransaction, MARF,
 };
@@ -539,6 +542,10 @@ impl ClarityBackingStore for ReadOnlyMarfStore<'_> {
         Some(&handle_contract_call_special_cases)
     }
 
+    fn get_evm_call_handler(&self) -> Option<EvmCallHandler> {
+        Some(&handle_evm_call)
+    }
+
     /// Sets the chain tip at which queries will happen.  Used for `(at-block ..)`
     fn set_block_hash(&mut self, bhh: StacksBlockId) -> Result<StacksBlockId, VmExecutionError> {
         self.marf
@@ -827,6 +834,10 @@ impl ClarityBackingStore for PersistentWritableMarfStore<'_> {
 
     fn get_cc_special_cases_handler(&self) -> Option<SpecialCaseHandler> {
         Some(&handle_contract_call_special_cases)
+    }
+
+    fn get_evm_call_handler(&self) -> Option<EvmCallHandler> {
+        Some(&handle_evm_call)
     }
 
     fn get_data(&mut self, key: &str) -> Result<Option<String>, VmExecutionError> {
@@ -1210,6 +1221,10 @@ impl<'a> ClarityBackingStore for Box<dyn WritableMarfStore + 'a> {
 
     fn get_cc_special_cases_handler(&self) -> Option<SpecialCaseHandler> {
         ClarityBackingStore::get_cc_special_cases_handler(&**self)
+    }
+
+    fn get_evm_call_handler(&self) -> Option<EvmCallHandler> {
+        ClarityBackingStore::get_evm_call_handler(&**self)
     }
 
     fn get_contract_hash(

@@ -831,6 +831,7 @@ impl TypedNativeFunction {
             | GetStacksBlockInfo
             | GetTenureInfo
             | ContractHash
+            | EvmCall
             | ToAscii
             | RestrictAssets
             | AsContractSafe

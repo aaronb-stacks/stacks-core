@@ -202,7 +202,7 @@ impl ArithmeticOnlyChecker<'_> {
             | InsertEntry | SetVar | MintAsset | MintToken | TransferAsset | TransferToken
             | ContractCall | StxTransfer | StxTransferMemo | StxBurn | AtBlock | GetStxBalance
             | GetTokenSupply | BurnToken | FromConsensusBuff | ToConsensusBuff | BurnAsset
-            | StxGetAccount => Err(Error::FunctionNotPermitted(function)),
+            | EvmCall | StxGetAccount => Err(Error::FunctionNotPermitted(function)),
             Append
             | Concat
             | AsMaxLen

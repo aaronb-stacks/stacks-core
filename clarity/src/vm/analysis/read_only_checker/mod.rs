@@ -443,7 +443,7 @@ impl<'a, 'b> ReadOnlyChecker<'a, 'b> {
             }
             StxTransfer | StxTransferMemo | StxBurn | SetEntry | DeleteEntry | InsertEntry
             | SetVar | MintAsset | MintToken | TransferAsset | TransferToken | BurnAsset
-            | BurnToken => {
+            | BurnToken | EvmCall => {
                 self.check_each_expression_is_read_only(args, recursion_depth)?;
                 Ok(false)
             }

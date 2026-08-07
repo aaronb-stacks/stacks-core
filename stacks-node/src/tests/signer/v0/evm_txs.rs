@@ -21,13 +21,14 @@ use std::io::{self, Write};
 use std::time::Duration;
 use std::{env, thread};
 
-use clarity::vm::Value;
+use clarity::vm::types::PrincipalData;
+use clarity::vm::{ClarityName, ContractName, Value};
 use pinny::tag;
 use stacks::chainstate::stacks::db::evm::abi::encode_call_input;
 use stacks::chainstate::stacks::db::evm::CLARITY_READ_PRECOMPILE;
 use stacks::chainstate::stacks::{
-    TransactionEvmContractCall, TransactionEvmPublish, TransactionPayload,
-    C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
+    TokenTransferMemo, TransactionContractCall, TransactionEvmContractCall, TransactionEvmPublish,
+    TransactionPayload, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
 };
 use stacks::codec::StacksMessageCodec;
 use stacks::core::test_util::{sign_standard_single_sig_tx, to_addr};
@@ -495,6 +496,12 @@ const DEMO_VAULT_SOLIDITY: &str = "contract Vault {                      // paya
 
 const DEMO_ORACLE_CODE: &str = "(define-read-only (get-answer) u42)";
 
+/// A Clarity contract that drives the EVM through `evm-call?`.
+const DEMO_CALLER_CODE: &str = r#"
+(define-public (store-in-evm (addr (buff 20)) (word (buff 1024)) (value uint))
+  (evm-call? addr word value u1000000))
+"#;
+
 #[tag(bitcoind)]
 #[test]
 #[ignore]
@@ -710,9 +717,88 @@ fn evm_demo() {
     p.render();
     ok("An EVM contract just read live Clarity state through the precompile,");
     info("with the Clarity execution cost charged against the EVM gas limit.");
+    wait("press Enter for the other direction: Clarity calling the EVM");
+
+    // --- step 6: the reverse bridge, Clarity -> EVM ----------------------
+    let txid =
+        submit!(
+            TransactionPayload::new_smart_contract("evm-caller", DEMO_CALLER_CODE, None).unwrap()
+        );
+    assert_eq!(get_tx_status_by_id(&txid).as_deref(), Some("success"));
+    let caller_id = format!("{sender_addr}.evm-caller");
+
+    // fund the calling contract: `evm-call?` draws msg.value from the
+    // *calling contract's* balance, never from tx-sender
+    submit!(TransactionPayload::TokenTransfer(
+        PrincipalData::parse(&caller_id).unwrap(),
+        2_000_000,
+        TokenTransferMemo([0u8; 34]),
+    ));
+
+    // the contract calls the EVM vault: store 99, attaching 1 STX
+    let mut word = vec![0u8; 32];
+    word[31] = 0x63;
+    let txid = submit!(TransactionPayload::ContractCall(TransactionContractCall {
+        address: sender_addr.clone(),
+        contract_name: ContractName::try_from("evm-caller").unwrap(),
+        function_name: ClarityName::try_from("store-in-evm").unwrap(),
+        function_args: vec![
+            Value::buff_from(vault.0.to_vec()).unwrap(),
+            Value::buff_from(word.clone()).unwrap(),
+            Value::UInt(1_000_000),
+        ],
+    }));
+    let caller_balance = get_account(&http, &PrincipalData::parse(&caller_id).unwrap()).balance;
+    let vault_bal_after = get_account(&http, &vault_addr).balance;
+
+    let mut p = step(6, "Clarity -> EVM  (the evm-call? native function)");
+    p.line(format!("{DIM}Clarity:{RESET}"));
+    p.code(DEMO_CALLER_CODE.trim(), YELLOW);
+    p.divider();
+    p.kv(
+        "status",
+        format!(
+            "{GREEN}{}{RESET}",
+            get_tx_status_by_id(&txid).unwrap_or_default()
+        ),
+    );
+    p.kv("msg.sender", format!("{caller_id}  (the contract)"));
+    p.kv("msg.value", "1000000 uSTX  (from the contract's balance)");
+    p.kv("caller left", format!("{caller_balance} uSTX"));
+    p.kv(
+        "vault balance",
+        format!("{GREEN}{vault_bal_after}{RESET} uSTX"),
+    );
+    p.render();
+    ok("A Clarity contract just drove the EVM: storage written, STX moved.");
+    info("msg.sender is the calling contract -- never tx-sender -- so a callee");
+    info("can never spend a user's STX through this path.");
+    wait("press Enter to read the EVM value the Clarity contract wrote");
+
+    // --- step 7: confirm the Clarity-initiated write landed --------------
+    let txid = submit!(TransactionPayload::EvmContractCall(
+        TransactionEvmContractCall {
+            address: vault.clone(),
+            gas_limit: GAS_LIMIT,
+            value: 0,
+            calldata: vec![],
+        }
+    ));
+    let ret = expect_ok_buff(&get_tx_result_by_id(&txid).unwrap());
+    let mut p = step(7, "Read back: one EVM slot, written from both VMs");
+    p.kv("returned", format!("0x{}", to_hex(&ret)));
+    p.kv(
+        "decoded",
+        format!(
+            "{GREEN}{BOLD}{}{RESET}  (was 42 from the EVM tx, now 99 from Clarity)",
+            demo_word_to_u128(&ret)
+        ),
+    );
+    p.render();
+    ok("Both VMs share one state tree; either can write the same EVM contract.");
     wait("press Enter to see a revert");
 
-    // --- step 6: revert semantics ---------------------------------------
+    // --- step 8: revert semantics ---------------------------------------
     let txid = submit!(TransactionPayload::EvmPublish(TransactionEvmPublish {
         gas_limit: GAS_LIMIT,
         value: 0,
@@ -733,7 +819,7 @@ fn evm_demo() {
             calldata: vec![],
         }
     ));
-    let mut p = step(6, "Revert - mined, fee paid, nothing moved");
+    let mut p = step(8, "Revert - mined, fee paid, nothing moved");
     p.kv(
         "status",
         format!(
@@ -755,7 +841,10 @@ fn evm_demo() {
         "  * EVM state lives in the MARF  (fork-aware, block-committed)",
         "  * EVM balances ARE the STX ledger  (1 wei = 1 uSTX)",
         "  * EVM gas maps into Clarity block cost  (one meter)",
-        "  * EVM contracts can read Clarity via the clarity-read precompile",
+        "  * EVM -> Clarity: the clarity-read precompile",
+        "  * Clarity -> EVM: the (evm-call? ...) native function",
+        "",
+        "  Two VMs, one state tree, one ledger, one gas meter.",
     ] {
         eprintln!("{GREEN}{BOLD}|{RESET} {line:<72} {GREEN}{BOLD}|{RESET}");
     }

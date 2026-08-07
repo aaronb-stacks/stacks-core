@@ -2843,6 +2843,31 @@ is not a contract or the specified contract does not exist. Returns:
     notices: &[],
 };
 
+const EVM_CALL: SimpleFunctionAPI = SimpleFunctionAPI {
+    name: None,
+    snippet: "evm-call? ${1:address} ${2:calldata} ${3:value} ${4:gas-limit}",
+    signature: "(evm-call? address calldata value gas-limit)",
+    description: "Calls an EVM contract at the 20-byte `address` with the raw ABI-encoded
+`calldata`, attaching `value` uSTX as the EVM `msg.value` and bounding execution by
+`gas-limit` EVM gas. The *calling contract* is the EVM `msg.sender`, and any attached
+value is drawn from that contract's own STX balance -- never from `tx-sender`.
+Returns:
+* `(ok <return-data>)` on success, where `<return-data>` is the EVM return data
+* `(err <revert-data>)` if the EVM call reverted or halted, where `<revert-data>` is
+the EVM revert data.
+
+The EVM writes no state when it fails. Consumed EVM gas is charged against the
+Clarity execution budget. Return and revert data are truncated to 1024 bytes.",
+    example: r#"
+;; call `store(uint256)` on an EVM contract, sending 100 uSTX
+(evm-call? 0xeee4566a2d0ee10a6af92d769f41c06ab3b4089a
+           0x000000000000000000000000000000000000000000000000000000000000002a
+           u100
+           u1000000) ;; Returns (ok 0x)
+"#,
+    notices: &[],
+};
+
 const TO_ASCII: SpecialAPI = SpecialAPI {
     input_type: "int|uint|bool|principal|(buff 524284)|(string-utf8 1048571)",
     snippet: "to-ascii? ${1:value}",
@@ -3246,6 +3271,7 @@ pub fn make_api_reference(function: &NativeFunctions) -> FunctionAPI {
         BitwiseLShift => make_for_simple_native(&BITWISE_LEFT_SHIFT_API, function, name),
         BitwiseRShift => make_for_simple_native(&BITWISE_RIGHT_SHIFT_API, function, name),
         ContractHash => make_for_simple_native(&CONTRACT_HASH, function, name),
+        EvmCall => make_for_simple_native(&EVM_CALL, function, name),
         ToAscii => make_for_special(&TO_ASCII, function),
         RestrictAssets => make_for_special(&RESTRICT_ASSETS, function),
         AsContractSafe => make_for_special(&AS_CONTRACT_SAFE, function),
@@ -3796,6 +3822,12 @@ mod test {
             }
             if func_api.name == "with-pox" {
                 eprintln!("Skipping with-pox, because it requires PoX state");
+                continue;
+            }
+            if func_api.name == "evm-call?" {
+                eprintln!(
+                    "Skipping evm-call?, because it requires a host-provided EVM interpreter"
+                );
                 continue;
             }
 

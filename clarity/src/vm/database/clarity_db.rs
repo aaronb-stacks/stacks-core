@@ -26,7 +26,7 @@ use stacks_common::types::chainstate::{
 use stacks_common::types::{StacksEpoch as GenericStacksEpoch, StacksEpochId};
 use stacks_common::util::hash::{Hash160, Sha512Trunc256Sum, to_hex};
 
-use super::clarity_store::SpecialCaseHandler;
+use super::clarity_store::{EvmCallHandler, SpecialCaseHandler};
 use super::key_value_wrapper::ValueResult;
 use crate::vm::analysis::{AnalysisDatabase, ContractAnalysis};
 use crate::vm::contexts::ContractContext;
@@ -1570,6 +1570,12 @@ impl ClarityDatabase<'_> {
 
     pub fn get_cc_special_cases_handler(&self) -> Option<SpecialCaseHandler> {
         self.store.get_cc_special_cases_handler()
+    }
+
+    /// The host-provided EVM interpreter behind the `evm-call?` native
+    /// function, if any.
+    pub fn get_evm_call_handler(&self) -> Option<EvmCallHandler> {
+        self.store.get_evm_call_handler()
     }
 
     #[allow(clippy::unnecessary_fallible_conversions)]

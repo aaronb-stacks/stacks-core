@@ -16,6 +16,7 @@
 
 #[cfg(feature = "rusqlite")]
 use rusqlite::Connection;
+use stacks_common::types::StacksEpochId;
 use stacks_common::types::chainstate::{StacksBlockId, TrieHash};
 use stacks_common::util::hash::{Sha512Trunc256Sum, hex_bytes, to_hex};
 
@@ -46,6 +47,56 @@ pub type SpecialCaseHandler = &'static dyn Fn(
     // the result of the function call
     &Value,
 ) -> Result<(), VmExecutionError>;
+
+/// An EVM call requested by the `evm-call?` native function.
+///
+/// The Clarity VM has no EVM interpreter of its own; the chainstate that
+/// hosts the VM provides one via [`EvmCallHandler`] (mirroring how
+/// [`SpecialCaseHandler`] injects PoX lockup behavior). Where no handler is
+/// installed (e.g. `clarity-cli`), `evm-call?` fails at runtime.
+pub struct EvmCallRequest<'a> {
+    /// whether this is a mainnet chain
+    pub mainnet: bool,
+    /// the chain id
+    pub chain_id: u32,
+    /// the current Stacks epoch
+    pub epoch: StacksEpochId,
+    /// the principal making the call (the current Clarity contract); it is
+    /// the EVM `msg.sender`, and any attached value is drawn from its
+    /// STX balance
+    pub caller: &'a PrincipalData,
+    /// the 20-byte EVM address of the callee
+    pub address: [u8; 20],
+    /// uSTX attached to the call as its EVM `msg.value` (1 wei == 1 uSTX)
+    pub value: u128,
+    /// the EVM gas limit for the call
+    pub gas_limit: u64,
+    /// raw ABI-encoded calldata
+    pub calldata: &'a [u8],
+}
+
+/// The result of an [`EvmCallHandler`] invocation. Always represents a
+/// completed EVM execution; `committed == false` means the EVM reverted or
+/// halted (and no state was written).
+pub struct EvmCallOutcome {
+    /// whether the EVM execution succeeded (its state diff was committed)
+    pub committed: bool,
+    /// return data on success; revert data on failure (bounded)
+    pub data: Vec<u8>,
+    /// EVM gas consumed
+    pub gas_used: u64,
+    /// EVM logs emitted by a successful execution, as transaction events
+    pub events: Vec<crate::vm::events::StacksTransactionEvent>,
+}
+
+/// Host-provided implementation of `evm-call?`. Executes an EVM call
+/// against the given database (all writes land in the database's current
+/// savepoint) and reports the outcome. Errors abort the enclosing Clarity
+/// execution; EVM-level failures are reported via `committed == false`.
+pub type EvmCallHandler = &'static dyn Fn(
+    &mut ClarityDatabase,
+    &EvmCallRequest,
+) -> Result<EvmCallOutcome, VmExecutionError>;
 
 // These functions generally _do not_ return errors, rather, any errors in the underlying storage
 //    will _panic_. The rationale for this is that under no condition should the interpreter
@@ -91,6 +142,12 @@ pub trait ClarityBackingStore {
     fn get_side_store(&mut self) -> &Connection;
 
     fn get_cc_special_cases_handler(&self) -> Option<SpecialCaseHandler> {
+        None
+    }
+
+    /// The host-provided EVM interpreter behind the `evm-call?` native
+    /// function, if any.
+    fn get_evm_call_handler(&self) -> Option<EvmCallHandler> {
         None
     }
 

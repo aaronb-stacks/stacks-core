@@ -21,8 +21,14 @@ proposals, real signer signatures, real block production — not a simulation.
 4. **`EvmContractCall`** read path — read the stored value back in a later
    transaction (state persisted in the MARF).
 5. **Deploy a Clarity contract**, then use the **`clarity-read` precompile**
-   so an EVM contract reads a value straight out of that Clarity contract.
-6. **Revert** — a failing call is still mined (nonce consumed, fee paid) but
+   so an EVM contract reads a value straight out of that Clarity contract
+   (EVM → Clarity).
+6. **`(evm-call? ...)`** — the reverse bridge: a Clarity contract drives the
+   EVM, writing storage and attaching `msg.value` drawn from its *own* STX
+   balance (Clarity → EVM). `msg.sender` is the calling contract, never
+   `tx-sender`, so a callee can't spend a user's funds through this path.
+7. **Read back** the EVM slot that has now been written by both VMs.
+8. **Revert** — a failing call is still mined (nonce consumed, fee paid) but
    changes no state.
 
 ## Run it
@@ -31,19 +37,23 @@ proposals, real signer signatures, real block production — not a simulation.
 # from the repository root
 podman build -t evm-demo -f contrib/evm-demo/Dockerfile .
 
-# interactive: press Enter to advance through each step.
-# capture stdout so the terminal shows only the walkthrough panels;
-# the full node/signer/bitcoind logs land in node.log.
-podman run --rm -it evm-demo 1>node.log
+# press Enter to advance each step; capture stdout so the terminal shows
+# only the walkthrough panels while full logs land in node.log.
+# NOTE: -i WITHOUT -t (see below).
+podman run --rm -i evm-demo 1>node.log
 ```
 
 The walkthrough panels are written to **stderr** and the node/signer/bitcoind
 logs to **stdout** (in a test build the stacks logger owns stdout). Redirecting
 stdout to a file therefore leaves a clean panel view on the terminal while
-preserving every log line in `node.log` for debugging. Running with `-it`
-enables the press-Enter stepping; without a TTY the demo auto-advances.
+preserving every log line in `node.log` for debugging. Stepping still works
+under plain `-i`: stdin stays connected, so pressing Enter advances each step;
+with no stdin at all the demo auto-advances.
 
-Omit the redirect (`podman run --rm -it evm-demo`) to watch panels and logs
+**Use `-i`, not `-it`, when capturing.** The `-t` flag allocates a pseudo-TTY
+that merges stdout and stderr onto one stream, which defeats the `1>node.log`
+split (everything, panels included, ends up together). If you don't care about
+separating them, `podman run --rm -it evm-demo` shows panels and logs
 interleaved on one screen.
 
 ## Requirements & notes

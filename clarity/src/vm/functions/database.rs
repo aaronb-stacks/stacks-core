@@ -23,7 +23,10 @@ use stacks_common::types::chainstate::StacksBlockId;
 use crate::vm::callables::DefineType;
 use crate::vm::contexts::{ExecutionState, InvocationContext};
 use crate::vm::costs::cost_functions::ClarityCostFunction;
-use crate::vm::costs::{CostTracker, MemoryConsumer, constants as cost_constants, runtime_cost};
+use crate::vm::costs::{
+    CostTracker, ExecutionCost, MemoryConsumer, constants as cost_constants, runtime_cost,
+};
+use crate::vm::database::EvmCallRequest;
 use crate::vm::errors::{
     RuntimeCheckErrorKind, RuntimeError, VmExecutionError, VmInternalError, check_argument_count,
     check_arguments_at_least,
@@ -1451,4 +1454,145 @@ pub fn special_contract_hash(
     Ok(Value::okay(Value::buff_from(
         contract_hash.as_bytes().to_vec(),
     )?)?)
+}
+
+/// Maximum length in bytes of the calldata accepted by `evm-call?`.
+pub const MAX_EVM_CALL_CALLDATA_LEN: u32 = 65536;
+/// Maximum length in bytes of the return / revert data reported by
+/// `evm-call?`.
+pub const MAX_EVM_CALL_RESULT_LEN: u32 = 1024;
+/// Hard cap on the gas limit `evm-call?` will accept, mirroring the cap
+/// applied to top-level EVM transaction payloads.
+pub const EVM_CALL_GAS_CAP: u64 = 30_000_000;
+/// Conversion ratio from consumed EVM gas to Clarity runtime cost units.
+pub const EVM_CALL_GAS_TO_RUNTIME: u64 = 100;
+
+/// `(evm-call? address calldata value gas-limit)`
+///
+/// Calls an EVM contract from Clarity. The calling contract is the EVM
+/// `msg.sender` (never `tx-sender`), and any `value` is drawn from the
+/// calling contract's own STX balance -- so a callee can never spend a
+/// user's funds through this path.
+///
+/// Returns `(ok <return-data>)` when the EVM call succeeds, or
+/// `(err <revert-data>)` when it reverts or halts. As with any Clarity
+/// value, swallowing the `err` keeps the enclosing transaction alive; the
+/// EVM side writes nothing on failure regardless.
+pub fn special_evm_call(
+    args: &[SymbolicExpression],
+    exec_state: &mut ExecutionState,
+    invoke_ctx: &InvocationContext,
+    context: &LocalContext,
+) -> Result<Value, VmExecutionError> {
+    check_argument_count(4, args)?;
+
+    // a conservative base cost; the EVM's own gas usage is charged below
+    runtime_cost(ClarityCostFunction::ContractCall, exec_state, 0)?;
+
+    let address_value = eval(&args[0], exec_state, invoke_ctx, context)?;
+    let calldata_value = eval(&args[1], exec_state, invoke_ctx, context)?;
+    let value_value = eval(&args[2], exec_state, invoke_ctx, context)?;
+    let gas_value = eval(&args[3], exec_state, invoke_ctx, context)?;
+
+    let address = match address_value.as_ref() {
+        Value::Sequence(SequenceData::Buffer(buff)) if buff.data.len() == 20 => {
+            let mut address = [0u8; 20];
+            address.copy_from_slice(&buff.data);
+            address
+        }
+        other => {
+            return Err(RuntimeCheckErrorKind::TypeValueError(
+                Box::new(TypeSignature::BUFFER_20),
+                other.to_error_string(),
+            )
+            .into());
+        }
+    };
+
+    let calldata = match calldata_value.as_ref() {
+        Value::Sequence(SequenceData::Buffer(buff)) => buff.data.clone(),
+        other => {
+            return Err(RuntimeCheckErrorKind::TypeValueError(
+                Box::new(TypeSignature::BUFFER_MAX),
+                other.to_error_string(),
+            )
+            .into());
+        }
+    };
+    if calldata.len() > MAX_EVM_CALL_CALLDATA_LEN as usize {
+        return Err(RuntimeCheckErrorKind::TypeValueError(
+            Box::new(TypeSignature::BUFFER_MAX),
+            format!("calldata exceeds {MAX_EVM_CALL_CALLDATA_LEN} bytes"),
+        )
+        .into());
+    }
+
+    let value = match value_value.as_ref() {
+        Value::UInt(value) => *value,
+        other => {
+            return Err(RuntimeCheckErrorKind::TypeValueError(
+                Box::new(TypeSignature::UIntType),
+                other.to_error_string(),
+            )
+            .into());
+        }
+    };
+
+    let gas_limit = match gas_value.as_ref() {
+        Value::UInt(gas) => u64::try_from(*gas).unwrap_or(u64::MAX),
+        other => {
+            return Err(RuntimeCheckErrorKind::TypeValueError(
+                Box::new(TypeSignature::UIntType),
+                other.to_error_string(),
+            )
+            .into());
+        }
+    };
+    let gas_limit = gas_limit.min(EVM_CALL_GAS_CAP);
+
+    // the EVM caller is the *current contract*, not tx-sender
+    let caller = PrincipalData::Contract(invoke_ctx.contract_context.contract_identifier.clone());
+
+    let Some(handler) = exec_state.global_context.database.get_evm_call_handler() else {
+        // no EVM interpreter is installed in this host (e.g. clarity-cli)
+        return Err(VmInternalError::Expect(
+            "evm-call? is not supported by this Clarity host".into(),
+        )
+        .into());
+    };
+
+    let request = EvmCallRequest {
+        mainnet: exec_state.global_context.mainnet,
+        chain_id: exec_state.global_context.chain_id,
+        epoch: exec_state.global_context.epoch_id,
+        caller: &caller,
+        address,
+        value,
+        gas_limit,
+        calldata: &calldata,
+    };
+    let outcome = handler(&mut exec_state.global_context.database, &request)?;
+
+    // charge the EVM's gas usage against the Clarity cost budget
+    exec_state
+        .global_context
+        .cost_track
+        .add_cost(ExecutionCost::runtime(
+            outcome.gas_used.saturating_mul(EVM_CALL_GAS_TO_RUNTIME),
+        ))?;
+
+    // forward EVM logs into the transaction's event stream
+    for event in outcome.events {
+        if let Some((batch, _)) = exec_state.global_context.event_batches.last_mut() {
+            batch.events.push(event);
+        }
+    }
+
+    let take = outcome.data.len().min(MAX_EVM_CALL_RESULT_LEN as usize);
+    let data = Value::buff_from(outcome.data.get(..take).unwrap_or(&outcome.data).to_vec())?;
+    if outcome.committed {
+        Ok(Value::okay(data)?)
+    } else {
+        Ok(Value::error(data)?)
+    }
 }

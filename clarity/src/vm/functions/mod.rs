@@ -191,6 +191,7 @@ define_versioned_named_enum_with_max!(NativeFunctions(ClarityVersion) {
     AllowanceWithStaking("with-staking", ClarityVersion::Clarity6, None),
     AllowanceWithPox("with-pox", ClarityVersion::Clarity6, None),
     AllowanceAll("with-all-assets-unsafe", ClarityVersion::Clarity4, None),
+    EvmCall("evm-call?", ClarityVersion::Clarity4, None),
     Secp256r1Verify("secp256r1-verify", ClarityVersion::Clarity4, None),
     VerifyMerkleProof("verify-merkle-proof", ClarityVersion::Clarity6, None),
     GetBitcoinTxOutput("get-bitcoin-tx-output?", ClarityVersion::Clarity6, None),
@@ -559,6 +560,7 @@ pub fn lookup_reserved_functions(name: &str, version: &ClarityVersion) -> Option
                 ClarityCostFunction::Xor,
             ),
             ContractHash => Special("special_contract_hash", &database::special_contract_hash),
+            EvmCall => Special("special_evm_call", &database::special_evm_call),
             ToAscii => Special("special_to_ascii", &conversions::special_to_ascii),
             RestrictAssets => Special(
                 "special_restrict_assets",

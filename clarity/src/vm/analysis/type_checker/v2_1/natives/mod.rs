@@ -1355,6 +1355,55 @@ impl TypedNativeFunction {
                 )
                 .map_err(|_| StaticCheckErrorKind::Unreachable("Bad constructor".into()))?,
             }))),
+            EvmCall => Simple(SimpleNativeFunction(FunctionType::Fixed(FixedFunction {
+                args: vec![
+                    FunctionArg::new(
+                        TypeSignature::BUFFER_20,
+                        ClarityName::try_from("address".to_owned()).map_err(|_| {
+                            StaticCheckErrorKind::Unreachable(
+                                "FAIL: ClarityName failed to accept default arg name".into(),
+                            )
+                        })?,
+                    ),
+                    FunctionArg::new(
+                        TypeSignature::BUFFER_MAX,
+                        ClarityName::try_from("calldata".to_owned()).map_err(|_| {
+                            StaticCheckErrorKind::Unreachable(
+                                "FAIL: ClarityName failed to accept default arg name".into(),
+                            )
+                        })?,
+                    ),
+                    FunctionArg::new(
+                        TypeSignature::UIntType,
+                        ClarityName::try_from("value".to_owned()).map_err(|_| {
+                            StaticCheckErrorKind::Unreachable(
+                                "FAIL: ClarityName failed to accept default arg name".into(),
+                            )
+                        })?,
+                    ),
+                    FunctionArg::new(
+                        TypeSignature::UIntType,
+                        ClarityName::try_from("gas-limit".to_owned()).map_err(|_| {
+                            StaticCheckErrorKind::Unreachable(
+                                "FAIL: ClarityName failed to accept default arg name".into(),
+                            )
+                        })?,
+                    ),
+                ],
+                returns: TypeSignature::new_response(
+                    TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                        BufferLength::try_from(1024u32).map_err(|_| {
+                            StaticCheckErrorKind::Unreachable("Bad buffer length".into())
+                        })?,
+                    )),
+                    TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                        BufferLength::try_from(1024u32).map_err(|_| {
+                            StaticCheckErrorKind::Unreachable("Bad buffer length".into())
+                        })?,
+                    )),
+                )
+                .map_err(|_| StaticCheckErrorKind::Unreachable("Bad constructor".into()))?,
+            }))),
             ToAscii => Special(SpecialNativeFunction(&conversions::check_special_to_ascii)),
             RestrictAssets => Special(SpecialNativeFunction(
                 &post_conditions::check_restrict_assets,

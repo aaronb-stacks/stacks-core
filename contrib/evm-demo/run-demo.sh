@@ -7,7 +7,10 @@
 # writes its walkthrough panels to *stderr*. So capture stdout to keep the
 # terminal showing only the panels, with full logs preserved in the file:
 #
-#   podman run --rm -it evm-demo 1>node.log
+#   podman run --rm -i evm-demo 1>node.log
+#
+# Use -i WITHOUT -t: the -t pseudo-TTY merges stdout and stderr onto one
+# stream, which would defeat the redirect. Stepping still works under -i.
 set -euo pipefail
 
 export BITCOIND_TEST=1
