@@ -28,8 +28,6 @@ proposals, real signer signatures, real block production — not a simulation.
    balance (Clarity → EVM). `msg.sender` is the calling contract, never
    `tx-sender`, so a callee can't spend a user's funds through this path.
 7. **Read back** the EVM slot that has now been written by both VMs.
-8. **Revert** — a failing call is still mined (nonce consumed, fee paid) but
-   changes no state.
 
 ## Run it
 
@@ -72,13 +70,42 @@ them. Type `help` in that pane for the list. The most useful ones:
 
 | command | shows |
 |---|---|
+| `step` | what's worth running at the current pause |
+| `balances` | one table: sender / EVM contract / Clarity contract, in uSTX |
 | `addrs` | every address the demo has published so far |
 | `chain` | chain tip / epoch (`GET /v2/info`) |
 | `vault` | the EVM contract's **STX balance** — the "1 wei == 1 uSTX" proof |
-| `sender` | the demo sender's balance + nonce |
 | `caller` | the Clarity contract that drives the EVM (its balance funds `msg.value`) |
 | `oracle` | read the Clarity oracle the EVM reads through the precompile |
+| `src [id]` | a contract's Clarity source, on chain — real `(evm-call? ...)` |
 | `acct <principal>` / `tx <txid>` | any account / transaction |
+
+**Raw node log** — the node's own output, unparsed, with the match
+highlighted. Usually the most convincing thing to put on screen: not a summary
+the demo produced, but what the node wrote while doing the work.
+
+| command | shows |
+|---|---|
+| `evmlog [n]` | the EVM running: payload type, gas used, succeeded, created address |
+| `signerlog [n]` | signers accepting the block that carried the transaction |
+| `blocklog [n]` | blocks moving through the node |
+| `rpclog [n]` | HTTP the node served, including the demo's `POST /v2/transactions` |
+| `logs <pat> [n]` | grep the log for anything |
+| `logf [pat]` | follow the log live, filtered (Ctrl-c to stop) |
+
+A detail worth pointing at during the demo: `evmlog` shows the *same*
+transaction executed more than once — once by the miner, then again by each
+signer validating the block proposal. That repetition is the consensus.
+
+Parsed from the node's event stream (snapshotted to `blocks.json` at each
+pause), for when structure is more useful than raw text:
+
+| command | shows |
+|---|---|
+| `txs [n]` | recent transactions: status, txid, result |
+| `events [n]` | recent events of every kind |
+| `evm-events` | **EVM logs only**, with the Solidity topic decoded out of the Clarity buff |
+| `blocks [n]` | per-block height / tx count / event count |
 
 Good moments to run them, while paused:
 

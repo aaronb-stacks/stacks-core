@@ -22,6 +22,7 @@ SESSION="${SESSION:-evm-demo}"
 WORKDIR="${WORKDIR:-/tmp/evm-demo}"
 NODE_LOG="$WORKDIR/node.log"
 DEMO_ENV="$WORKDIR/rpc.env"
+BLOCKS_FILE="$WORKDIR/blocks.json"
 HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/rpc-helpers.sh"
 SRC_DIR="${SRC_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
@@ -47,7 +48,7 @@ fi
 # top-right pane tails). EVM_DEMO_RPC_FILE tells the test where to publish its
 # endpoint and the addresses it creates, for the RPC pane to query.
 DEMO_CMD="export PATH='$DEMO_PATH'; cd '$SRC_DIR' && \
-BITCOIND_TEST=1 EVM_DEMO_RPC_FILE='$DEMO_ENV' \
+BITCOIND_TEST=1 EVM_DEMO_RPC_FILE='$DEMO_ENV' EVM_DEMO_BLOCKS_FILE='$BLOCKS_FILE' \
 cargo test -p stacks-node --offline evm_demo -- \
     --ignored --nocapture --test-threads=1 \
     1>'$NODE_LOG'; \
@@ -59,7 +60,9 @@ DEMO_PANE="$(tmux list-panes -t "$SESSION:demo" -F '#{pane_id}' | head -n1)"
 
 # pane 2 (bottom, full width): the interactive RPC shell
 tmux split-window -v -l '30%' -t "$DEMO_PANE" \
-    "bash -c \"export PATH='$DEMO_PATH'; cd '$WORKDIR' && DEMO_ENV='$DEMO_ENV' bash --rcfile '$HELPERS' -i\""
+    "bash -c \"export PATH='$DEMO_PATH'; cd '$WORKDIR' && \
+DEMO_ENV='$DEMO_ENV' NODE_LOG='$NODE_LOG' BLOCKS_FILE='$BLOCKS_FILE' \
+bash --rcfile '$HELPERS' -i\""
 
 # pane 3 (top-right): the node logs
 tmux split-window -h -l '50%' -t "$DEMO_PANE" \

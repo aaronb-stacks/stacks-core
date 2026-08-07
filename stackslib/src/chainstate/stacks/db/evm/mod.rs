@@ -779,13 +779,17 @@ mod test {
     /// - otherwise: stores calldata[0..32] into slot 0 and emits a LOG1 with
     ///   topic 0x1111...11
     const STORAGE_INIT_CODE: &str = concat!(
-        // init: codecopy(0, 0x0c, 0x3e); return(0, 0x3e)
-        "603e600c600039603e6000f3",
-        // runtime, 0x3e bytes
-        "3615603257",
-        "600035600055",
+        // init: codecopy(0, 0x0c, 0x42); return(0, 0x42)
+        "6042600c60003960426000f3",
+        // runtime, 0x42 bytes.
+        // if calldatasize == 0, jump to the read path at 0x36
+        "3615603657",
+        // word = calldataload(0); sstore(0, word); mstore(0, word)
+        "60003580600055600052",
+        // log1(offset=0, size=32, topic=0x1111..) -- the data is the stored word
         "7f1111111111111111111111111111111111111111111111111111111111111111",
-        "60006000a100",
+        "60206000a100",
+        // read path: return the 32-byte word in slot 0
         "5b60005460005260206000f3",
     );
 
@@ -1036,10 +1040,11 @@ mod test {
                     Value::Sequence(clarity::vm::types::SequenceData::Buffer(buff)) => &buff.data,
                     other => panic!("expected buff event payload, got {other:?}"),
                 };
-                // one topic, our constant, no data
+                // one topic (our constant), and the stored word as the data
                 assert_eq!(payload[0], 1);
                 assert_eq!(&payload[1..33], &LOG_TOPIC);
-                assert_eq!(payload.len(), 33);
+                assert_eq!(&payload[33..], word.as_slice());
+                assert_eq!(payload.len(), 65);
             }
             other => panic!("expected smart contract event, got {other:?}"),
         }
@@ -1468,6 +1473,11 @@ mod test {
     (var-set marker u2)
     (unwrap! (evm-call? addr calldata value u1000000) (err u500))
     (ok u0)))
+;; the shape the demo uses: print the EVM's response, then pass it through
+(define-public (call-evm-print (addr (buff 20)) (calldata (buff 1024)) (value uint))
+  (match (evm-call? addr calldata value u1000000)
+    returned (begin (print { evm-returned: returned }) (ok returned))
+    reverted (begin (print { evm-reverted: reverted }) (err reverted))))
 "#;
 
     /// Build a contract-call payload invoking the Clarity caller contract.
@@ -1608,6 +1618,44 @@ mod test {
         let (_, receipt) =
             StacksChainState::process_transaction(&mut conn, &read_tx, false, None).unwrap();
         assert_eq!(expect_ok_buff(&receipt), word);
+
+        // the demo's shape: the Clarity contract `print`s the EVM's response
+        // alongside the EVM's own log, so both events reach the event feed
+        let mut word2 = vec![0u8; 32];
+        word2[31] = 0x63;
+        let tx = make_evm_tx(
+            &privk,
+            4,
+            caller_payload(&caller_id, "call-evm-print", &vault, word2.clone(), 0),
+        );
+        let (_, receipt) =
+            StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
+        let response = match &receipt.result {
+            Value::Response(response) => response,
+            other => panic!("expected response, got {other:?}"),
+        };
+        assert!(
+            response.committed,
+            "call-evm-print failed: {:?}",
+            receipt.result
+        );
+
+        let topics: Vec<_> = receipt
+            .events
+            .iter()
+            .filter_map(|e| match e {
+                StacksTransactionEvent::SmartContractEvent(data) => Some(data.key.1.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            topics.contains(&"evm-log"),
+            "expected the EVM's own log, got {topics:?}"
+        );
+        assert!(
+            topics.contains(&"print"),
+            "expected the Clarity print of the EVM response, got {topics:?}"
+        );
 
         conn.commit_block();
     }

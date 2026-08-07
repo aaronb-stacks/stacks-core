@@ -47,13 +47,17 @@ use crate::tests::signer::{test_observer, SignerTest};
 /// - otherwise: stores calldata[0..32] into slot 0 and emits a LOG1 with
 ///   topic 0x1111...11
 const STORAGE_INIT_CODE: &str = concat!(
-    // init: codecopy(0, 0x0c, 0x3e); return(0, 0x3e)
-    "603e600c600039603e6000f3",
-    // runtime, 0x3e bytes
-    "3615603257",
-    "600035600055",
+    // init: codecopy(0, 0x0c, 0x42); return(0, 0x42)
+    "6042600c60003960426000f3",
+    // runtime, 0x42 bytes.
+    // if calldatasize == 0, jump to the read path at 0x36
+    "3615603657",
+    // word = calldataload(0); sstore(0, word); mstore(0, word)
+    "60003580600055600052",
+    // log1(offset=0, size=32, topic=0x1111..) -- the data is the stored word
     "7f1111111111111111111111111111111111111111111111111111111111111111",
-    "60006000a100",
+    "60206000a100",
+    // read path: return the 32-byte word in slot 0
     "5b60005460005260206000f3",
 );
 
@@ -510,7 +514,9 @@ const DEMO_ORACLE_CODE: &str = "(define-read-only (get-answer) u42)";
 /// A Clarity contract that drives the EVM through `evm-call?`.
 const DEMO_CALLER_CODE: &str = r#"
 (define-public (store-in-evm (addr (buff 20)) (word (buff 1024)) (value uint))
-  (evm-call? addr word value u1000000))
+  (match (evm-call? addr word value u1000000)
+    returned (begin (print { evm-returned: returned }) (ok returned))
+    reverted (begin (print { evm-reverted: reverted }) (err reverted))))
 "#;
 
 /// Publish a `KEY=value` line to the file named by `EVM_DEMO_RPC_FILE`, if
@@ -528,6 +534,25 @@ fn demo_note(key: &str, value: &str) {
     {
         let _ = writeln!(file, "{key}={value}");
     }
+}
+
+/// Dump the event observer's blocks -- including every transaction and
+/// event the node emitted -- to the file named by `EVM_DEMO_BLOCKS_FILE`,
+/// so the demo's RPC pane can `jq` over real event data. A no-op if unset.
+fn demo_dump_blocks() {
+    let Ok(path) = env::var("EVM_DEMO_BLOCKS_FILE") else {
+        return;
+    };
+    let blocks = test_observer::get_blocks();
+    if let Ok(json) = serde_json::to_string(&blocks) {
+        let _ = std::fs::write(path, json);
+    }
+}
+
+/// Record the demo's position and snapshot observer state for the RPC pane.
+fn demo_pause_state(step: u32) {
+    demo_note("STEP", &step.to_string());
+    demo_dump_blocks();
 }
 
 #[tag(bitcoind)]
@@ -599,7 +624,7 @@ fn evm_demo() {
     );
     p.render();
     ok("A single Stacks key controls both the Stacks and EVM address.");
-    demo_note("STEP", "0");
+    demo_pause_state(0);
     suggest(&[
         (
             "chain",
@@ -636,7 +661,7 @@ fn evm_demo() {
     p.render();
     demo_note("VAULT_EVM", &format!("0x{}", to_hex(&vault.0)));
     ok("Deployed in a real signer-approved Nakamoto block; code lives in the MARF.");
-    demo_note("STEP", "1");
+    demo_pause_state(1);
     suggest(&[
         ("addrs", "the EVM contract now has a Stacks principal"),
         (
@@ -666,7 +691,7 @@ fn evm_demo() {
     p.kv(
         "evm log",
         if logged {
-            format!("{GREEN}Stored event on the Stacks event feed{RESET}")
+            format!("{GREEN}Stored(42) on the Stacks event feed{RESET}  (data = the word)")
         } else {
             "none".to_string()
         },
@@ -685,7 +710,7 @@ fn evm_demo() {
     ok("msg.value moved real STX to the contract's own Stacks principal:");
     demo_note("VAULT", &vault_addr.to_string());
     info(&vault_addr.to_string());
-    demo_note("STEP", "2");
+    demo_pause_state(2);
     suggest(&[
         (
             "balances",
@@ -713,7 +738,7 @@ fn evm_demo() {
     );
     p.render();
     ok("EVM contract storage persisted across transactions, in the MARF.");
-    demo_note("STEP", "3");
+    demo_pause_state(3);
     suggest(&[
         (
             "chain",
@@ -739,7 +764,7 @@ fn evm_demo() {
     p.kv("contract", format!("{GREEN}{oracle_id}{RESET}"));
     p.render();
     ok("A plain Clarity contract, deployed the normal way.");
-    demo_note("STEP", "4");
+    demo_pause_state(4);
     suggest(&[
         (
             "oracle",
@@ -798,7 +823,7 @@ fn evm_demo() {
     p.render();
     ok("An EVM contract just read live Clarity state through the precompile,");
     info("with the Clarity execution cost charged against the EVM gas limit.");
-    demo_note("STEP", "5");
+    demo_pause_state(5);
     suggest(&[(
         "oracle",
         "the EVM just read exactly this value, through the precompile",
@@ -851,6 +876,10 @@ fn evm_demo() {
     );
     p.kv("msg.sender", format!("{caller_id}  (the contract)"));
     p.kv("msg.value", "1000000 uSTX  (from the contract's balance)");
+    p.kv(
+        "events",
+        "an EVM log (word=99) + a Clarity print of the EVM's response",
+    );
     p.kv("caller left", format!("{caller_balance} uSTX"));
     p.kv(
         "vault balance",
@@ -860,8 +889,12 @@ fn evm_demo() {
     ok("A Clarity contract just drove the EVM: storage written, STX moved.");
     info("msg.sender is the calling contract -- never tx-sender -- so a callee");
     info("can never spend a user's STX through this path.");
-    demo_note("STEP", "6");
+    demo_pause_state(6);
     suggest(&[
+        (
+            "events",
+            "both: the EVM's log AND Clarity's print of the response",
+        ),
         (
             "src $CALLER",
             "real (evm-call? ...) Clarity source, on chain",
@@ -894,53 +927,13 @@ fn evm_demo() {
     );
     p.render();
     ok("Both VMs share one state tree; either can write the same EVM contract.");
-    demo_note("STEP", "7");
-    suggest(&[(
-        "balances",
-        "the vault holds 5 STX (from the EVM) + 1 STX (from Clarity)",
-    )]);
-    wait("press Enter to see a revert");
-
-    // --- step 8: revert semantics ---------------------------------------
-    let txid = submit!(TransactionPayload::EvmPublish(TransactionEvmPublish {
-        gas_limit: GAS_LIMIT,
-        value: 0,
-        code: hex_bytes(REVERT_INIT_CODE).unwrap(),
-    }));
-    let guard = Hash160(
-        expect_ok_buff(&get_tx_result_by_id(&txid).unwrap())
-            .as_slice()
-            .try_into()
-            .unwrap(),
-    );
-    let nonce_before = nonce;
-    let txid = submit!(TransactionPayload::EvmContractCall(
-        TransactionEvmContractCall {
-            address: guard,
-            gas_limit: GAS_LIMIT,
-            value: 1_000_000,
-            calldata: vec![],
-        }
-    ));
-    let mut p = step(8, "Revert - mined, fee paid, nothing moved");
-    p.kv(
-        "status",
-        format!(
-            "{YELLOW}{}{RESET}",
-            get_tx_status_by_id(&txid).unwrap_or_default()
-        ),
-    );
-    p.kv("value attempted", "1000000 uSTX  (rolled back)");
-    p.kv("nonce", format!("{nonce_before} -> {nonce}  (consumed)"));
-    p.render();
-    ok("A revert is a mined transaction: nonce advances, no state changes.");
-    demo_note("STEP", "8");
+    demo_pause_state(7);
     suggest(&[
-        ("balances", "the revert moved nothing"),
         (
-            "sender",
-            "...but the nonce still advanced -- the fee was paid",
+            "balances",
+            "the vault holds 5 STX (from the EVM) + 1 STX (from Clarity)",
         ),
+        ("evmlog", "the whole run, as the node logged it"),
     ]);
     wait("press Enter to finish");
 
