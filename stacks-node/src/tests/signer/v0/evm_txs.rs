@@ -483,16 +483,26 @@ fn demo_word_to_u128(word: &[u8]) -> u128 {
 /// to prove an EVM *contract* (not just a top-level tx) can reach the Clarity
 /// precompile.
 fn demo_forwarder_init_code(target: &[u8; 20]) -> Vec<u8> {
+    // calldatacopy(0, 0, calldatasize)
     let mut runtime = vec![0x36, 0x60, 0x00, 0x60, 0x00, 0x37];
+    // call(gas, target, value=0, in=0, insize=calldatasize, out=0, outsize=0)
     runtime.extend_from_slice(&[0x60, 0x00, 0x60, 0x00, 0x36, 0x60, 0x00, 0x60, 0x00]);
     runtime.push(0x73);
     runtime.extend_from_slice(target);
     runtime.extend_from_slice(&[0x5a, 0xf1]);
+    // returndatacopy(0, 0, returndatasize)
     runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0x60, 0x00, 0x3e]);
     let ok_dest = u8::try_from(runtime.len() + 7).unwrap();
     runtime.extend_from_slice(&[0x60, ok_dest, 0x57]);
+    // failure: revert(0, returndatasize)
     runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0xfd]);
-    runtime.extend_from_slice(&[0x5b, 0x3d, 0x60, 0x00, 0xf3]);
+    // success: emit the value Clarity returned as an EVM log of its own --
+    // log1(offset=0, size=returndatasize, topic=0x2222..) -- then return it
+    runtime.push(0x5b); // JUMPDEST
+    runtime.push(0x7f); // PUSH32 topic
+    runtime.extend_from_slice(&CLARITY_RESULT_TOPIC);
+    runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0xa1]);
+    runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0xf3]);
     let len = u8::try_from(runtime.len()).unwrap();
     let mut init = vec![
         0x60, len, 0x60, 0x0c, 0x60, 0x00, 0x39, 0x60, len, 0x60, 0x00, 0xf3,
@@ -509,7 +519,12 @@ const DEMO_VAULT_SOLIDITY: &str = "contract Vault {                      // paya
     emit Stored();                    // -> Stacks event
   } }";
 
-const DEMO_ORACLE_CODE: &str = "(define-read-only (get-answer) u42)";
+const DEMO_ORACLE_CODE: &str = "(define-read-only (get-answer) u56718)";
+
+/// EVM log topic used by the forwarder when it re-emits a value it read out
+/// of Clarity. Distinct from the vault's 0x1111.. topic, so the two are
+/// clearly different events on the feed.
+const CLARITY_RESULT_TOPIC: [u8; 32] = [0x22; 32];
 
 /// A Clarity contract that drives the EVM through `evm-call?`.
 const DEMO_CALLER_CODE: &str = r#"
@@ -816,18 +831,29 @@ fn evm_demo() {
     p.kv(
         "decoded",
         format!(
-            "{GREEN}{BOLD}{}{RESET}  (Clarity's u42, read by the EVM)",
+            "{GREEN}{BOLD}{}{RESET}  (Clarity's u56718, read by the EVM)",
             demo_word_to_u128(&ret)
         ),
+    );
+    p.kv(
+        "evm log",
+        format!("{GREEN}topic 0x2222..{RESET}, data = the value Clarity returned"),
     );
     p.render();
     ok("An EVM contract just read live Clarity state through the precompile,");
     info("with the Clarity execution cost charged against the EVM gas limit.");
+    info("It then emitted that Clarity value back out as its own EVM event.");
     demo_pause_state(5);
-    suggest(&[(
-        "oracle",
-        "the EVM just read exactly this value, through the precompile",
-    )]);
+    suggest(&[
+        (
+            "evm-events",
+            "topic 0x2222.., data = 56718 -- Clarity's value, logged by the EVM",
+        ),
+        (
+            "oracle",
+            "the EVM just read exactly this value, through the precompile",
+        ),
+    ]);
     wait("press Enter for the other direction: Clarity calling the EVM");
 
     // --- step 6: the reverse bridge, Clarity -> EVM ----------------------
@@ -896,6 +922,10 @@ fn evm_demo() {
             "both: the EVM's log AND Clarity's print of the response",
         ),
         (
+            "print-events",
+            "the Clarity print decoded: evm-returned = the EVM's reply",
+        ),
+        (
             "src $CALLER",
             "real (evm-call? ...) Clarity source, on chain",
         ),
@@ -938,9 +968,12 @@ fn evm_demo() {
     wait("press Enter to finish");
 
     let bar = "=".repeat(74);
+    let mined = format!("  {nonce} transactions, every one mined into a signer-approved block.");
     eprintln!("{GREEN}{BOLD}+{bar}+{RESET}");
     for line in [
         "  EVM-on-Stacks: Solidity-style contracts, Bitcoin-anchored settlement.",
+        "",
+        mined.as_str(),
         "",
         "  * EVM state lives in the MARF  (fork-aware, block-committed)",
         "  * EVM balances ARE the STX ledger  (1 wei = 1 uSTX)",

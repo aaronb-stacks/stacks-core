@@ -899,8 +899,14 @@ mod test {
         out
     }
 
+    /// EVM log topic the forwarder uses when re-emitting a value it read
+    /// out of Clarity, distinct from the storage contract's 0x1111.. topic.
+    const CLARITY_RESULT_TOPIC: [u8; 32] = [0x22; 32];
+
     /// EVM init code for a contract that forwards its calldata to `target`
-    /// via CALL and bubbles up the result (return or revert).
+    /// via CALL and bubbles up the result (return or revert). On success it
+    /// also emits the returned bytes as an EVM log under
+    /// `CLARITY_RESULT_TOPIC`.
     fn forwarder_init_code(target: &Address) -> Vec<u8> {
         // calldatacopy(0, 0, calldatasize)
         let mut runtime = vec![0x36, 0x60, 0x00, 0x60, 0x00, 0x37];
@@ -915,8 +921,13 @@ mod test {
         let ok_dest = u8::try_from(runtime.len() + 7).unwrap();
         runtime.extend_from_slice(&[0x60, ok_dest, 0x57]); // PUSH1 ok JUMPI
         runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0xfd]); // REVERT
-        runtime.extend_from_slice(&[0x5b, 0x3d, 0x60, 0x00, 0xf3]); // JUMPDEST RETURN
-                                                                    // init: codecopy(0, 0x0c, len); return(0, len)
+                                                              // success: log1(0, returndatasize, topic), then return the same bytes
+        runtime.push(0x5b); // JUMPDEST
+        runtime.push(0x7f); // PUSH32 topic
+        runtime.extend_from_slice(&CLARITY_RESULT_TOPIC);
+        runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0xa1]); // RETURNDATASIZE PUSH1 0 LOG1
+        runtime.extend_from_slice(&[0x3d, 0x60, 0x00, 0xf3]); // RETURNDATASIZE PUSH1 0 RETURN
+                                                              // init: codecopy(0, 0x0c, len); return(0, len)
         let len = u8::try_from(runtime.len()).unwrap();
         let mut init = vec![
             0x60, len, 0x60, 0x0c, 0x60, 0x00, 0x39, 0x60, len, 0x60, 0x00, 0xf3,
@@ -1446,12 +1457,35 @@ mod test {
             StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
         assert_eq!(expect_ok_buff(&receipt), word_u128(42));
 
-        // the (err ...) path bubbles through the intermediate contract too
+        // the forwarder also re-emits what Clarity returned as an EVM log of
+        // its own: topic 0x2222.., data = the Clarity value
+        let payload = receipt
+            .events
+            .iter()
+            .find_map(|e| match e {
+                StacksTransactionEvent::SmartContractEvent(data) if data.key.1 == "evm-log" => {
+                    match &data.value {
+                        Value::Sequence(clarity::vm::types::SequenceData::Buffer(buff)) => {
+                            Some(buff.data.clone())
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            })
+            .expect("expected an evm-log event from the forwarder");
+        assert_eq!(payload[0], 1, "one topic");
+        assert_eq!(&payload[1..33], &CLARITY_RESULT_TOPIC);
+        assert_eq!(&payload[33..], word_u128(42).as_slice());
+
+        // the (err ...) path bubbles through the intermediate contract too,
+        // and emits no log (the EVM reverted)
         let calldata = abi::encode_call_input(&contract_id, "checked", &vec![0u8; 32]);
         let tx = make_evm_tx(&privk, 3, call_payload(&forwarder, 1_000_000, 0, calldata));
         let (_, receipt) =
             StacksChainState::process_transaction(&mut conn, &tx, false, None).unwrap();
         assert_eq!(expect_err_buff(&receipt), word_u128(99));
+        assert!(receipt.events.is_empty(), "a revert emits no events");
 
         conn.commit_block();
     }

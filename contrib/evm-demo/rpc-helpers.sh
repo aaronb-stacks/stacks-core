@@ -186,14 +186,64 @@ txs() {
     ' "$BLOCKS_FILE"
 }
 
-# Every event the node emitted, newest last.
+# jq helpers shared by the event decoders below: hex -> int, hex -> ascii.
+_JQ_HEX='
+def hex2int: ascii_downcase | explode
+  | map(if . >= 97 then . - 87 else . - 48 end)
+  | reduce .[] as $d (0; . * 16 + $d);
+def hex2ascii: . as $h | [range(0; ($h|length); 2) | $h[.:.+2] | hex2int] | implode;
+def hexdec: if . == "" then "" else
+  (sub("^0+"; "") | if . == "" then "0" elif (length <= 12) then (hex2int | tostring) else "" end)
+  end;
+'
+
+# Every event the node emitted, newest last, with its payload.
+# For contract events the payload is the Clarity value, hex-serialized:
+# use `print-events` / `evm-events` to see those decoded.
 events() {
     _blocks_ready || return 1
     local n="${1:-15}"
     jq -r --argjson n "$n" '
         [ .[] | .events[]? ] | .[-$n:] | .[]
-        | "\((.type // "?") | (. + "                 ")[0:18]) txid=\(.txid[0:20])  \(.contract_event.topic // "")"
+        | ((.type // "?") | (. + "                 ")[0:18]) as $t
+        | (.contract_event.topic // "-") as $topic
+        | (.contract_event.raw_value
+           // (if .stx_transfer_event then
+                 "\(.stx_transfer_event.sender) -> \(.stx_transfer_event.recipient)  \(.stx_transfer_event.amount) uSTX"
+               else "" end)) as $data
+        | "\($t) \($topic | (. + "          ")[0:10]) txid=\(.txid[0:14])  \($data[0:60])"
     ' "$BLOCKS_FILE"
+}
+
+# Clarity `print` events, with the tuple decoded: the field name and its
+# buff value (and the decimal, when the buff is a plain 32-byte word).
+# This is what the demo's Clarity contract emits with the EVM's response.
+print-events() {
+    _blocks_ready || return 1
+    jq -r "$_JQ_HEX"'
+        [ .[] | .events[]? | select(.contract_event.topic == "print") ] | .[]
+        | (.contract_event.raw_value | ltrimstr("0x")) as $v
+        | (if $v[0:2] == "0c" then ($v[10:12] | hex2int) else 0 end) as $namelen
+        | (if $namelen > 0 then ($v[12 : 12 + $namelen * 2] | hex2ascii) else "?" end) as $name
+        | (12 + $namelen * 2) as $vs
+        | (if $v[$vs:$vs+2] == "02" then ($v[$vs+2 : $vs+10] | hex2int) else 0 end) as $blen
+        | (if $blen > 0 then $v[$vs+10 : $vs+10 + $blen * 2] else "" end) as $data
+        | ($data | hexdec) as $dec
+        | "txid=\(.txid[0:20])  contract=\(.contract_event.contract_identifier)
+    " + (if $blen == 0 then
+             # not the { name: buff } shape this demo emits -- show it raw
+             "raw = 0x\($v)"
+         else
+             "\($name) = 0x\($data)\(if $dec == "" then "" else "  (= \($dec))" end)"
+         end)
+    ' "$BLOCKS_FILE"
+}
+
+# The full JSON of recent events, when the summaries are not enough.
+events-json() {
+    _blocks_ready || return 1
+    local n="${1:-5}"
+    jq --argjson n "$n" '[ .[] | .events[]? ] | .[-$n:]' "$BLOCKS_FILE"
 }
 
 # Just the EVM logs, with the Solidity topic decoded out of the Clarity buff.
@@ -201,15 +251,15 @@ events() {
 # prefixes it with 0x02 and a 4-byte length.
 evm-events() {
     _blocks_ready || return 1
-    jq -r '
+    jq -r "$_JQ_HEX"'
         [ .[] | .events[]? | select(.contract_event.topic == "evm-log") ] | .[]
         | (.contract_event.raw_value | ltrimstr("0x")) as $v
-        | ($v[10:12] | ascii_downcase | explode
-           | map(if . >= 97 then . - 87 else . - 48 end)
-           | reduce .[] as $d (0; . * 16 + $d)) as $ntopics
+        | ($v[10:12] | hex2int) as $ntopics
+        | $v[76:140] as $data
+        | ($data | hexdec) as $dec
         | "txid=\(.txid[0:20])  contract=\(.contract_event.contract_identifier)
     topics=\($ntopics)  topic0=0x\($v[12:76])
-    data=0x\($v[76:140])"
+    data=0x\($data)\(if $dec == "" then "" else "  (= \($dec))" end)"
     ' "$BLOCKS_FILE"
 }
 
@@ -313,10 +363,12 @@ step() {
         echo "  src \$ORACLE # its Clarity source, as stored on chain"
         ;;
     5)
-        echo "  oracle     # the EVM just read exactly this value (u42)"
+        echo "  evm-events # topic 0x2222.., data = 56718: Clarity's value, logged by the EVM"
+        echo "  oracle     # the EVM read exactly this value through the precompile"
         ;;
     6)
-        echo "  events     # BOTH: the EVM's log and Clarity's print of the response"
+        echo "  events       # BOTH: the EVM's log and Clarity's print of the response"
+        echo "  print-events # the Clarity print decoded: evm-returned = the EVM's reply"
         echo "  evmlog     # raw log: the EVM ran, driven from Clarity this time"
         echo "  src \$CALLER # real (evm-call? ...) Clarity source, on chain"
         echo "  balances   # the Clarity contract paid the EVM from its OWN balance"
@@ -359,8 +411,10 @@ EVM-on-Stacks demo -- RPC pane
 
  parsed from the node's event stream (snapshotted at each pause):
   txs [n]        recent transactions: status, txid, result
-  events [n]     recent events of every kind
-  evm-events     EVM logs only, with the Solidity topic decoded
+  events [n]     recent events of every kind, with their payload
+  evm-events     EVM logs, with the topic and data decoded
+  print-events   Clarity print events, with the tuple decoded
+  events-json [n]  the full JSON, when the summaries are not enough
   blocks [n]     per-block height / tx count / event count
 
 The walkthrough pane prints the commands worth running at each pause; `step`
