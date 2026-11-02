@@ -1,0 +1,91 @@
+---
+source: stackslib/src/chainstate/tests/runtime_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "734a4009b9dea0aa3d0e563ec587520db0f19a6ae8868bdebfbc6a6c5d430bb2",
+    evaluated_epoch: Epoch32,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: bad-block-hash-Epoch3_2-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 155,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 13907,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 155,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 13907,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "0c2fda5c234b88b65338a4bcf36983a6208bce0c6a651dd554e795428196f92b",
+    evaluated_epoch: Epoch32,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: bad-block-hash-Epoch3_2-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 155,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 13906,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 155,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 13906,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "652d55540c83eccbe64564df7720766565b6f13b210dc46bb50551d49656ee0b",
+    evaluated_epoch: Epoch32,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: bad-block-hash-Epoch3_2-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 155,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 13906,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 155,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 13906,
+    ),
+  )),
+]

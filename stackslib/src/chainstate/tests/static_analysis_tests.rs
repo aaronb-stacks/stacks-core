@@ -25,8 +25,8 @@ use clarity::vm::types::MAX_TYPE_DEPTH;
 use clarity::vm::ClarityVersion;
 
 use crate::chainstate::tests::consensus::{
-    clarity_versions_for_epoch, contract_deploy_consensus_snap_test, tested_epochs_since,
-    ConsensusTest, ConsensusUtils, SetupContract, TestBlock, EPOCHS_TO_TEST,
+    assert_epoch_snapshots, clarity_versions_for_epoch, contract_deploy_consensus_snap_test,
+    tested_epochs_since, ConsensusTest, ConsensusUtils, SetupContract, TestBlock, EPOCHS_TO_TEST,
 };
 use crate::core::BLOCK_LIMIT_MAINNET_21;
 use crate::util_lib::boot::boot_code_test_addr;
@@ -1428,7 +1428,7 @@ fn error_invalid_stacks_transaction_duplicate_contract() {
 
     let result = ConsensusTest::new(function_name!(), vec![], epochs_blocks).run();
 
-    insta::assert_ron_snapshot!(result);
+    assert_epoch_snapshots!(result);
 }
 
 /// StaticCheckErrorKind: [`StaticCheckErrorKind::ValueTooLarge`].

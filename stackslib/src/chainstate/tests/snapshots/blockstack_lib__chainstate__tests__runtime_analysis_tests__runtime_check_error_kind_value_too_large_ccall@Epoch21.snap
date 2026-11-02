@@ -1,0 +1,63 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "2f3c74874fc8abda6bfaa8d5c96f9acbbc9ed841b0ca0ac04a402d0488901b84",
+    evaluated_epoch: Epoch21,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch2_1-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 1535,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 74570,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1535,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 74570,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "4809ec1112c28e98c3f3075f9963c3522cb1123e5536ed55c259efaf88541632",
+    evaluated_epoch: Epoch21,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch2_1-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 1535,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 74570,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1535,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 74570,
+    ),
+  )),
+]

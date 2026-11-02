@@ -1,0 +1,187 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "8a91573a2cf2cfa002ed14e441efc6de638ad15a978380011af24c2e0ad61f85",
+    evaluated_epoch: Epoch40,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: type-depth-runtime-Epoch4_0-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "Some(TypeSignatureTooDeep) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1963,
+          write_count: 4,
+          read_length: 1,
+          read_count: 2,
+          runtime: 80471,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1963,
+      write_count: 4,
+      read_length: 1,
+      read_count: 2,
+      runtime: 80471,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "514ca983cb404bffdaa7105104f1d765eab9e12593c3cab28d636bdfb2d0687b",
+    evaluated_epoch: Epoch40,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: type-depth-runtime-Epoch4_0-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "Some(TypeSignatureTooDeep) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1963,
+          write_count: 4,
+          read_length: 1,
+          read_count: 2,
+          runtime: 80471,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1963,
+      write_count: 4,
+      read_length: 1,
+      read_count: 2,
+      runtime: 80471,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "2a984ad80bc6f9252ce48f09a1a8286b331f37039442f7d304552037b94dbe76",
+    evaluated_epoch: Epoch40,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: type-depth-runtime-Epoch4_0-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "Some(TypeSignatureTooDeep) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1963,
+          write_count: 4,
+          read_length: 1,
+          read_count: 2,
+          runtime: 80471,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1963,
+      write_count: 4,
+      read_length: 1,
+      read_count: 2,
+      runtime: 80471,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "5a5b995ad54abd02f13202e76569a9dac74d92734cc85fc86d60be0c986649af",
+    evaluated_epoch: Epoch40,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: type-depth-runtime-Epoch4_0-Clarity4, code_body: [..], clarity_version: Some(Clarity4))",
+        vm_error: "Some(TypeSignatureTooDeep) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1963,
+          write_count: 4,
+          read_length: 1,
+          read_count: 2,
+          runtime: 80471,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1963,
+      write_count: 4,
+      read_length: 1,
+      read_count: 2,
+      runtime: 80471,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "2de4b10afcbee926f7e80a8e70096c3f4928b69543a01b098a436dbd9076b017",
+    evaluated_epoch: Epoch40,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: type-depth-runtime-Epoch4_0-Clarity5, code_body: [..], clarity_version: Some(Clarity5))",
+        vm_error: "Some(TypeSignatureTooDeep) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1963,
+          write_count: 4,
+          read_length: 1,
+          read_count: 2,
+          runtime: 80471,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1963,
+      write_count: 4,
+      read_length: 1,
+      read_count: 2,
+      runtime: 80471,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "e39c760a51d2f9249bf4b78571806fdcd940dcf7b7546944597c67e5a06da18d",
+    evaluated_epoch: Epoch40,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: type-depth-runtime-Epoch4_0-Clarity6, code_body: [..], clarity_version: Some(Clarity6))",
+        vm_error: "Some(TypeSignatureTooDeep) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1963,
+          write_count: 4,
+          read_length: 1,
+          read_count: 2,
+          runtime: 80471,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1963,
+      write_count: 4,
+      read_length: 1,
+      read_count: 2,
+      runtime: 80471,
+    ),
+  )),
+]

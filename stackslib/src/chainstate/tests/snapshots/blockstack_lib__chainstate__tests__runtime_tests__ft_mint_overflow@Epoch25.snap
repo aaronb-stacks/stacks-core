@@ -1,0 +1,63 @@
+---
+source: stackslib/src/chainstate/tests/runtime_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "1042cc1ba82f0561632646079072a4303b3da6cbba5973480664f0d53a0bf375",
+    evaluated_epoch: Epoch25,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: ft-mint-overflow-Epoch2_5-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 225,
+          write_count: 4,
+          read_length: 1,
+          read_count: 1,
+          runtime: 18477,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 225,
+      write_count: 4,
+      read_length: 1,
+      read_count: 1,
+      runtime: 18477,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "5305b7cf67c04d4cd158116ddedad80cb628446edf4b23b83bfc4b328fd67b8d",
+    evaluated_epoch: Epoch25,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: ft-mint-overflow-Epoch2_5-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 225,
+          write_count: 4,
+          read_length: 1,
+          read_count: 1,
+          runtime: 18473,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 225,
+      write_count: 4,
+      read_length: 1,
+      read_count: 1,
+      runtime: 18473,
+    ),
+  )),
+]

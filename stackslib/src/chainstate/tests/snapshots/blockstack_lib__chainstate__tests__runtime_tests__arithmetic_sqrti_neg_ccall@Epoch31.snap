@@ -1,0 +1,91 @@
+---
+source: stackslib/src/chainstate/tests/runtime_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "dc80b46224c1e8ee7c078c23f6493b398c7b17d9297da8bbcbdf8cdcd5bd6d9e",
+    evaluated_epoch: Epoch31,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: sqrti-neg-Epoch3_1-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 52,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 9472,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 52,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 9472,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "a318f84932732172ec21c716a4b49faaa1b66540f7b5df004c08d5e49c4d6dff",
+    evaluated_epoch: Epoch31,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: sqrti-neg-Epoch3_1-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 52,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 9472,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 52,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 9472,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "41e4f580880568a85b9e594e374b0fec00a229c05126d9e28ab7a83c9075893d",
+    evaluated_epoch: Epoch31,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: sqrti-neg-Epoch3_1-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 52,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 9472,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 52,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 9472,
+    ),
+  )),
+]

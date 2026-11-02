@@ -1,0 +1,127 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "10f8b83c343a83a8359160437450766d785a1f146c5fca3ee908dab026983dc7",
+    evaluated_epoch: Epoch33,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_3-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "Some(TypeError(UIntType, OptionalType(NoType))) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 811,
+          write_count: 3,
+          read_length: 470,
+          read_count: 9,
+          runtime: 58240,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 811,
+      write_count: 3,
+      read_length: 470,
+      read_count: 9,
+      runtime: 58240,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "371fd175bae8df852371240ca62145706022ec3d097136e3bc05713656b388c4",
+    evaluated_epoch: Epoch33,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_3-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "Some(TypeError(UIntType, OptionalType(NoType))) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 811,
+          write_count: 3,
+          read_length: 472,
+          read_count: 10,
+          runtime: 59878,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 811,
+      write_count: 3,
+      read_length: 472,
+      read_count: 10,
+      runtime: 59878,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "8154a553171a739822be13b5ff96ffb61917517249580025f486f38b4dd1916a",
+    evaluated_epoch: Epoch33,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_3-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "Some(TypeError(UIntType, OptionalType(NoType))) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 811,
+          write_count: 3,
+          read_length: 472,
+          read_count: 10,
+          runtime: 59878,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 811,
+      write_count: 3,
+      read_length: 472,
+      read_count: 10,
+      runtime: 59878,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "be70601ab0a5cced3114c6452ba44e980a9db5dd00335c6ad418ea2fb00a9203",
+    evaluated_epoch: Epoch33,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_3-Clarity4, code_body: [..], clarity_version: Some(Clarity4))",
+        vm_error: "Some(TypeError(UIntType, OptionalType(NoType))) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 811,
+          write_count: 3,
+          read_length: 472,
+          read_count: 10,
+          runtime: 59878,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 811,
+      write_count: 3,
+      read_length: 472,
+      read_count: 10,
+      runtime: 59878,
+    ),
+  )),
+]

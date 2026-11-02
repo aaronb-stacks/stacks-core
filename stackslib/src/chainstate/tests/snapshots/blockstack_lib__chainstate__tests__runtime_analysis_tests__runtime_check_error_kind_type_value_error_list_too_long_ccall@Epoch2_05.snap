@@ -1,0 +1,35 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "120d74628d2c7642fa28413f4df73d5ffc46e7ac96d4c9a590c50d2afee19f9b",
+    evaluated_epoch: Epoch2_05,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch2_05-Clarity1, code_body: [..], clarity_version: None)",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 74,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 307041,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 74,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 307041,
+    ),
+  )),
+]

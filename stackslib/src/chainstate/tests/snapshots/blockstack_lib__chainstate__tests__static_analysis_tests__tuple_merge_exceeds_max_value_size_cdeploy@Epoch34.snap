@@ -1,0 +1,157 @@
+---
+source: stackslib/src/chainstate/tests/static_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "1f2bff0bdcdeff210605144c986be80fa3eeadb1506809e27cafb9a060c06302",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: tuple-merge-overflow-Epoch3_4-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "Some(:0:0: created a type which was greater than maximum allowed value size) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 177,
+          write_count: 1,
+          read_length: 1,
+          read_count: 1,
+          runtime: 52162,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 177,
+      write_count: 1,
+      read_length: 1,
+      read_count: 1,
+      runtime: 52162,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "0948326f55e87c04e19111ee1b7b123182996faca1429a73ae37bb7fd4874729",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: tuple-merge-overflow-Epoch3_4-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "Some(:0:0: created a type which was greater than maximum allowed value size) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 177,
+          write_count: 1,
+          read_length: 1,
+          read_count: 1,
+          runtime: 52162,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 177,
+      write_count: 1,
+      read_length: 1,
+      read_count: 1,
+      runtime: 52162,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "95cb6cacc244535372d1cfbfd3806bb0b391e6e9e91143af3601a036e135d771",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: tuple-merge-overflow-Epoch3_4-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "Some(:0:0: created a type which was greater than maximum allowed value size) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 177,
+          write_count: 1,
+          read_length: 1,
+          read_count: 1,
+          runtime: 52162,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 177,
+      write_count: 1,
+      read_length: 1,
+      read_count: 1,
+      runtime: 52162,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "841ab0cb987f6d1684c7d855aef0a2b29d425f2fc6409750e84e316139ef3772",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: tuple-merge-overflow-Epoch3_4-Clarity4, code_body: [..], clarity_version: Some(Clarity4))",
+        vm_error: "Some(:0:0: created a type which was greater than maximum allowed value size) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 177,
+          write_count: 1,
+          read_length: 1,
+          read_count: 1,
+          runtime: 52162,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 177,
+      write_count: 1,
+      read_length: 1,
+      read_count: 1,
+      runtime: 52162,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "c6e66ec229ac484149a0815ba3b2617c434f322eced77d9ba5202c6297c3e06d",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: tuple-merge-overflow-Epoch3_4-Clarity5, code_body: [..], clarity_version: Some(Clarity5))",
+        vm_error: "Some(:0:0: created a type which was greater than maximum allowed value size) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 177,
+          write_count: 1,
+          read_length: 1,
+          read_count: 1,
+          runtime: 52162,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 177,
+      write_count: 1,
+      read_length: 1,
+      read_count: 1,
+      runtime: 52162,
+    ),
+  )),
+]

@@ -1,0 +1,91 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "6c3d41e77c06e9f7b8059b5129ab2cb425928c6453fb9363600206f497ca7d60",
+    evaluated_epoch: Epoch32,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_2-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 789,
+          write_count: 3,
+          read_length: 6,
+          read_count: 2,
+          runtime: 38847,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 789,
+      write_count: 3,
+      read_length: 6,
+      read_count: 2,
+      runtime: 38847,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "81924f41a5312872ccf5379692c95ff8a68fbce50e858a53cd5bdc6ddaafe69b",
+    evaluated_epoch: Epoch32,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_2-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 789,
+          write_count: 3,
+          read_length: 8,
+          read_count: 3,
+          runtime: 40485,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 789,
+      write_count: 3,
+      read_length: 8,
+      read_count: 3,
+      runtime: 40485,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "54221344300a04bf7f7c5314460e6f50816071a5cd9f12c3b168b22fccf7a1f1",
+    evaluated_epoch: Epoch32,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_2-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 789,
+          write_count: 3,
+          read_length: 8,
+          read_count: 3,
+          runtime: 40485,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 789,
+      write_count: 3,
+      read_length: 8,
+      read_count: 3,
+      runtime: 40485,
+    ),
+  )),
+]

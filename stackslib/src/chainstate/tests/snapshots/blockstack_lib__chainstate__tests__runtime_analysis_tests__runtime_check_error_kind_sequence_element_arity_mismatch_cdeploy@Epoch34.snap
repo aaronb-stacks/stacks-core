@@ -1,0 +1,23 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch34,
+    error: "Invalid Stacks block 167eadbfc7fc0e337f4f5cbb0c601fc909cd223a1eebff8c08d0412e8f84629a: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch34,
+    error: "Invalid Stacks block 848e4f241ca6783541c562f9c31f02b8484b08bca5ac32424def1c1e72ebaa97: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch34,
+    error: "Invalid Stacks block 46e4ce5346a609629aac93b6cd84514205b6430801dc6b76dd4d7b378df663d2: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch34,
+    error: "Invalid Stacks block ba3d0b2e46f45ecd00af9ed83e32394166c2e72f650a42e094dfae28256ea883: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+]

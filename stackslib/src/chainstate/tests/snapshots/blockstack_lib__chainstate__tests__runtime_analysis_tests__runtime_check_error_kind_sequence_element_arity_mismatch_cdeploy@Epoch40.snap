@@ -1,0 +1,27 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch40,
+    error: "Invalid Stacks block f0a01eed97e01b0cda75e0955e749b49031a5b66a09752ddeee842d98ee9bdb8: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch40,
+    error: "Invalid Stacks block 457929ddfa99d474bfa0c0c3866385c2aec5960e6f4a7312be22df87e9ff5b56: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch40,
+    error: "Invalid Stacks block 04fbb0449f0da37c25f280e47e25c4c9da7284d8c898e254eb8e17a556bda79e: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch40,
+    error: "Invalid Stacks block 376f46911fb941bd71de2b3fe9710ad8dd314c970d3b8fbaf092e8361ba2d4ab: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch40,
+    error: "Invalid Stacks block e03a790c82dc9b7623ddbb7dc615a7e8c01695e6b96c48269123e3ccc17fba18: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+]

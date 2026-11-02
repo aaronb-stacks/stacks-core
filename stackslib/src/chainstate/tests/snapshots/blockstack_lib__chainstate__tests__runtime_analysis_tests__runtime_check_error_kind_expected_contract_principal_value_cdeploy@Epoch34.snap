@@ -1,0 +1,67 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "ecde6903e6d580e0c3e124ab92e093b4a87f2bcd37ee126515f43fcf7a890d85",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: contract-Epoch3_4-Clarity4, code_body: [..], clarity_version: Some(Clarity4))",
+        vm_error: "Some(ExpectedContractPrincipalValue(\"Principal(Standard(StandardPrincipalData(ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 167,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 15231,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 167,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 15231,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "03d187799bcea58fbfe06a0c1f5ed40dcfb5ac53630d062e6c0bbec5668e454f",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: contract-Epoch3_4-Clarity5, code_body: [..], clarity_version: Some(Clarity5))",
+        vm_error: "Some(ExpectedContractPrincipalValue(\"Principal(Standard(StandardPrincipalData(ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 167,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 15231,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 167,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 15231,
+    ),
+  )),
+]

@@ -1,0 +1,157 @@
+---
+source: stackslib/src/chainstate/tests/static_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "cf0101b36661ad714c94c74f9dc58976d13df1b5a19ea43c2634545fc0b94b5e",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: default-types-must-Epoch3_4-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "Some(:0:0: expression types passed in \'default-to\' must match (got \'bool\' and \'int\')) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 28,
+          write_count: 1,
+          read_length: 1,
+          read_count: 1,
+          runtime: 4991,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 28,
+      write_count: 1,
+      read_length: 1,
+      read_count: 1,
+      runtime: 4991,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "1eb6160c89938f2bd0ed5729ecf525cb695066b9a9f3d03c72dde9f7f4037783",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: default-types-must-Epoch3_4-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "Some(:0:0: expression types passed in \'default-to\' must match (got \'bool\' and \'int\')) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 28,
+          write_count: 1,
+          read_length: 1,
+          read_count: 1,
+          runtime: 4991,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 28,
+      write_count: 1,
+      read_length: 1,
+      read_count: 1,
+      runtime: 4991,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "d558ed5b04aba3f74b069bee45c0b42bd0cf138faeb56edff0952d53dbe0d359",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: default-types-must-Epoch3_4-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "Some(:0:0: expression types passed in \'default-to\' must match (got \'bool\' and \'int\')) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 28,
+          write_count: 1,
+          read_length: 1,
+          read_count: 1,
+          runtime: 4991,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 28,
+      write_count: 1,
+      read_length: 1,
+      read_count: 1,
+      runtime: 4991,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "266e45736857201ee1fc169d90b687786bc153e90e7fdf85cc58295d0dfc75f9",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: default-types-must-Epoch3_4-Clarity4, code_body: [..], clarity_version: Some(Clarity4))",
+        vm_error: "Some(:0:0: expression types passed in \'default-to\' must match (got \'bool\' and \'int\')) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 28,
+          write_count: 1,
+          read_length: 1,
+          read_count: 1,
+          runtime: 4991,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 28,
+      write_count: 1,
+      read_length: 1,
+      read_count: 1,
+      runtime: 4991,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "d24d7351f7be003ee15b808c7c4b281ff9331d12da9ba743ac2d0253aea3a455",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: default-types-must-Epoch3_4-Clarity5, code_body: [..], clarity_version: Some(Clarity5))",
+        vm_error: "Some(:0:0: expression types passed in \'default-to\' must match (got \'bool\' and \'int\')) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 28,
+          write_count: 1,
+          read_length: 1,
+          read_count: 1,
+          runtime: 4991,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 28,
+      write_count: 1,
+      read_length: 1,
+      read_count: 1,
+      runtime: 4991,
+    ),
+  )),
+]

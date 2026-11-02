@@ -429,6 +429,8 @@ cargo insta test -p stackslib --unreferenced=delete -- chainstate::tests --inclu
 cargo insta review
 ```
 
+Each test writes one snapshot per evaluated epoch, named `<test>@<Epoch>.snap`. A block's MARF root commits to every earlier block, so adding an epoch to `EPOCHS_TO_TEST` should only add new `@<Epoch>` files. A modified file for an existing epoch is a change to that epoch's results and must be explained. If a test stops evaluating an epoch, it fails until the leftover `@<Epoch>` file is deleted.
+
 ## Formatting
 
 PRs will be checked against `rustfmt` and will _fail_ if not properly formatted.

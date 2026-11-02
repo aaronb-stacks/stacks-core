@@ -1,0 +1,135 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "08153691aa0c2801aa33a97f75a0b7297e9067eba22779f324069d68adae04bc",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch3_4-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 125,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 12624,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 125,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 12624,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "b3e2b4076a27e991f75ace01585b12717393302d2fb6e87cee2a54545513cf8d",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch3_4-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 125,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 12624,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 125,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 12624,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "4a42e6586ed65c3e338ad3ae19b9b364cf50721340840796790466c162680319",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch3_4-Clarity4, code_body: [..], clarity_version: Some(Clarity4))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 125,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 12624,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 125,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 12624,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "01814cb1ea5e60ce273e3b1e4a4c679c69ff120cf916ccf61212c4890f50909d",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch3_4-Clarity5, code_body: [..], clarity_version: Some(Clarity5))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 125,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 12624,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 125,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 12624,
+    ),
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch34,
+    error: "Invalid Stacks block de2d9cfc5e48b2d75c2dfea47bb20b568cdec110e68a72f710321329ff33d5be: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch34,
+    error: "Invalid Stacks block 20c400a72ff8a73227624daee4914fd5d60fa8a6e9674e91e85e3f5dc10b79d7: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch34,
+    error: "Invalid Stacks block 32f8c79fb1b4aff0860f6f6716e93bd6fc1c9d8b19cc51d26d0eda6a50f0f332: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch34,
+    error: "Invalid Stacks block f2715465e6c09216ec56b83a24866d6c60be42c30ea25b190a69b8b83c69f7eb: ClarityError(Interpreter(RuntimeCheck(SequenceElementArityMismatch { expected: 1, found: 0 })))",
+  )),
+]

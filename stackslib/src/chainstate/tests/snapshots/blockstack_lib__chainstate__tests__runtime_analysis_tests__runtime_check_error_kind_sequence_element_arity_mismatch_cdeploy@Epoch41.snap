@@ -1,0 +1,37 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "f33a60b2d8494346e6775b7a800d4f2f75b785229d66134c8be88e361b9bcc7a",
+    evaluated_epoch: Epoch41,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch4_1-Clarity7, code_body: [..], clarity_version: None)",
+        vm_error: "Some(SequenceElementArityMismatch { expected: 1, found: 0 }) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 70,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 10586,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 70,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 10586,
+    ),
+  )),
+]

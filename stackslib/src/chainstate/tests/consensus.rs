@@ -1959,6 +1959,116 @@ macro_rules! contract_call_consensus_unit_test {
 }
 pub(crate) use contract_call_consensus_unit_test;
 
+/// Groups `results` by the epoch they were evaluated in, preserving block order within each epoch.
+pub fn group_results_by_epoch(
+    results: &[ExpectedResult],
+) -> BTreeMap<StacksEpochId, Vec<&ExpectedResult>> {
+    let mut by_epoch: BTreeMap<_, Vec<_>> = BTreeMap::new();
+    for result in results {
+        let epoch = match result {
+            ExpectedResult::Success(output) => output.evaluated_epoch,
+            ExpectedResult::Failure(output) => output.evaluated_epoch,
+        };
+        by_epoch.entry(epoch).or_default().push(result);
+    }
+    by_epoch
+}
+
+/// The `insta` snapshot-name suffix for `epoch`, e.g. `Epoch40` in `<test>@Epoch40.snap`.
+pub fn epoch_snapshot_suffix(epoch: StacksEpochId) -> String {
+    format!("{epoch:?}")
+}
+
+/// Returns the names in `file_names` that are per-epoch snapshots of this test for an epoch
+/// not in `epochs`.
+///
+/// `module_path` and `function_name` identify the test the same way `insta` names its
+/// snapshots: `<module path with __>__<fn name without test_>@<epoch suffix>.snap`.
+pub fn stale_epoch_snapshots<'a>(
+    file_names: impl Iterator<Item = String>,
+    module_path: &str,
+    function_name: &str,
+    epochs: impl Iterator<Item = &'a StacksEpochId>,
+) -> Vec<String> {
+    let test_name = function_name
+        .rsplit("::")
+        .find(|segment| *segment != "{{closure}}")
+        .expect("function name has at least one segment");
+    let test_name = test_name.strip_prefix("test_").unwrap_or(test_name);
+    let prefix = format!("{}__{test_name}@", module_path.replace("::", "__"));
+    let expected: BTreeSet<String> = epochs
+        .map(|epoch| format!("{prefix}{}.snap", epoch_snapshot_suffix(*epoch)))
+        .collect();
+    file_names
+        .filter(|name| name.starts_with(&prefix) && name.ends_with(".snap"))
+        .filter(|name| !expected.contains(name))
+        .collect()
+}
+
+/// Panics if the snapshot directory holds a per-epoch snapshot for this test whose epoch is
+/// not in `epochs`.
+///
+/// `insta` only fails on snapshots that differ or are missing. Without this check, a test that
+/// stops producing results for an epoch would leave that epoch's file behind and still pass,
+/// silently losing the coverage the file recorded.
+///
+/// Only callers in `chainstate::tests` are supported, as that is where the snapshot
+/// directory is looked up.
+pub fn check_no_stale_epoch_snapshots<'a>(
+    module_path: &str,
+    function_name: &str,
+    epochs: impl Iterator<Item = &'a StacksEpochId>,
+) {
+    let snapshot_dir = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/chainstate/tests/snapshots"
+    );
+    let entries = match std::fs::read_dir(snapshot_dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+        Err(e) => panic!("Failed to read snapshot directory {snapshot_dir}: {e}"),
+    };
+    let file_names = entries.map(|entry| {
+        entry
+            .expect("Failed to read snapshot directory entry")
+            .file_name()
+            .to_string_lossy()
+            .into_owned()
+    });
+    let stale = stale_epoch_snapshots(file_names, module_path, function_name, epochs);
+    assert!(
+        stale.is_empty(),
+        "Stale snapshots in {snapshot_dir} for epochs this test no longer evaluates: {stale:?}. \
+         Delete them if dropping those epochs is intended."
+    );
+}
+
+/// Asserts one RON snapshot per evaluated epoch, named `<test>@<Epoch>.snap`.
+///
+/// Every block's MARF root commits to all earlier blocks, so appending an epoch to
+/// [`EPOCHS_TO_TEST`] never changes earlier epochs' results. Splitting by epoch means such an
+/// append only adds files, and any modified file is a genuine change to an existing epoch.
+///
+/// Must be invoked directly in the test function: `insta` derives the snapshot name from it.
+macro_rules! assert_epoch_snapshots {
+    ($results:expr) => {{
+        let by_epoch = $crate::chainstate::tests::consensus::group_results_by_epoch(&$results);
+        $crate::chainstate::tests::consensus::check_no_stale_epoch_snapshots(
+            module_path!(),
+            function_name!(),
+            by_epoch.keys(),
+        );
+        for (epoch, results) in by_epoch {
+            insta::with_settings!({
+                snapshot_suffix => $crate::chainstate::tests::consensus::epoch_snapshot_suffix(epoch),
+            }, {
+                insta::assert_ron_snapshot!(results);
+            });
+        }
+    }};
+}
+pub(crate) use assert_epoch_snapshots;
+
 /// Generates a consensus test body for executing a contract function across multiple Stacks epochs.
 ///
 /// This macro automates both contract deployment and function invocation across different
@@ -2009,7 +2119,7 @@ macro_rules! contract_call_consensus_snap_test {
         let result = $crate::chainstate::tests::consensus::contract_call_consensus_unit_test! {
             $($tt)*
         };
-        insta::assert_ron_snapshot!(result.get_expected_results());
+        $crate::chainstate::tests::consensus::assert_epoch_snapshots!(result.get_expected_results());
     }};
 }
 pub(crate) use contract_call_consensus_snap_test;
@@ -2078,7 +2188,7 @@ macro_rules! contract_deploy_consensus_snap_test {
         let result = $crate::chainstate::tests::consensus::contract_deploy_consensus_unit_test! {
             $($tt)*
         };
-        insta::assert_ron_snapshot!(result.get_expected_results());
+        $crate::chainstate::tests::consensus::assert_epoch_snapshots!(result.get_expected_results());
     }};
 }
 pub(crate) use contract_deploy_consensus_snap_test;
@@ -2231,6 +2341,69 @@ impl ConsensusUtils {
     }
 }
 
+const STALE_TEST_MODULE: &str = "blockstack_lib::chainstate::tests::consensus";
+
+/// Snapshot file names in the `consensus` module for test `name` at each `epoch`.
+fn stale_test_files(name: &str, epochs: &[&str]) -> Vec<String> {
+    epochs
+        .iter()
+        .map(|epoch| format!("blockstack_lib__chainstate__tests__consensus__{name}@{epoch}.snap"))
+        .collect()
+}
+
+#[test]
+fn stale_epoch_snapshots_flags_only_unevaluated_epochs() {
+    let files = stale_test_files("deploy", &["Epoch33", "Epoch34", "Epoch40"]);
+    let stale = stale_epoch_snapshots(
+        files.into_iter(),
+        STALE_TEST_MODULE,
+        "blockstack_lib::chainstate::tests::consensus::test_deploy",
+        [StacksEpochId::Epoch34, StacksEpochId::Epoch40].iter(),
+    );
+    assert_eq!(stale, stale_test_files("deploy", &["Epoch33"]));
+}
+
+#[test]
+fn stale_epoch_snapshots_ignores_other_files() {
+    let mut files = stale_test_files("deploy_and_call", &["Epoch33"]);
+    files.extend(stale_test_files("other_deploy", &["Epoch33"]));
+    files.push("blockstack_lib__chainstate__tests__consensus__deploy@Epoch33.snap.new".into());
+    files.push("blockstack_lib__chainstate__tests__consensus__deploy.snap".into());
+    files.push("blockstack_lib__chainstate__tests__parse_tests__deploy@Epoch33.snap".into());
+    let stale = stale_epoch_snapshots(
+        files.into_iter(),
+        STALE_TEST_MODULE,
+        "blockstack_lib::chainstate::tests::consensus::test_deploy",
+        [StacksEpochId::Epoch34].iter(),
+    );
+    assert!(stale.is_empty(), "{stale:?}");
+}
+
+#[test]
+fn stale_epoch_snapshots_matches_insta_naming() {
+    // Without a `test_` prefix, and called from inside a closure.
+    let files = stale_test_files("deploy", &["Epoch2_05", "Epoch34"]);
+    let stale = stale_epoch_snapshots(
+        files.into_iter(),
+        STALE_TEST_MODULE,
+        "blockstack_lib::chainstate::tests::consensus::deploy::{{closure}}",
+        [StacksEpochId::Epoch34].iter(),
+    );
+    assert_eq!(stale, stale_test_files("deploy", &["Epoch2_05"]));
+}
+
+#[test]
+fn stale_epoch_snapshots_flags_all_when_no_epochs_evaluated() {
+    let files = stale_test_files("deploy", &["Epoch34", "Epoch40"]);
+    let stale = stale_epoch_snapshots(
+        files.clone().into_iter(),
+        STALE_TEST_MODULE,
+        "blockstack_lib::chainstate::tests::consensus::test_deploy",
+        [].iter(),
+    );
+    assert_eq!(stale, files);
+}
+
 #[test]
 fn test_append_empty_blocks() {
     let empty_test_blocks = vec![TestBlock {
@@ -2242,7 +2415,7 @@ fn test_append_empty_blocks() {
     }
 
     let result = ConsensusTest::new(function_name!(), vec![], epoch_blocks).run();
-    insta::assert_ron_snapshot!(result);
+    assert_epoch_snapshots!(result);
 }
 
 /// A block with one STX transfer from the faucet.
@@ -2508,7 +2681,7 @@ fn test_append_stx_transfers_success() {
     }
 
     let result = ConsensusTest::new(function_name!(), initial_balances, epoch_blocks).run();
-    insta::assert_ron_snapshot!(result);
+    assert_epoch_snapshots!(result);
 }
 
 /// Example of using the `contract_call_consensus_snap_test!` macro

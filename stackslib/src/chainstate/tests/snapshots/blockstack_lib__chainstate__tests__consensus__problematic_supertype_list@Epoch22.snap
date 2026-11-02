@@ -1,0 +1,15 @@
+---
+source: stackslib/src/chainstate/tests/consensus.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch22,
+    error: "Invalid Stacks block 959420ced698d49c96db58c8a16faf949f30c7fbecc714e46d1cd702f81e9fe4: ClarityError(Interpreter(Internal(DBError(\"Deserialization expected the type of the input to be: (tuple (a int))\"))))",
+  )),
+  Failure(ExpectedFailureOutput(
+    evaluated_epoch: Epoch22,
+    error: "Invalid Stacks block ddec42056d5bd65c47043cc66f551ef84109268b287e02b2cc21358bc1263c9e: ClarityError(Interpreter(Internal(DBError(\"Deserialization expected the type of the input to be: (tuple (a int))\"))))",
+  )),
+]

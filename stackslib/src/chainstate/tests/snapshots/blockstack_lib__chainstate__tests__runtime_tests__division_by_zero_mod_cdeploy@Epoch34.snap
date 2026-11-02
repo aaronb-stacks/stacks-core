@@ -1,0 +1,157 @@
+---
+source: stackslib/src/chainstate/tests/runtime_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "c1d760c86f67b319182de28bdd233dce6346a3acaa84127d8ff5880754359f91",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: division-by-zero-mod-Epoch3_4-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "Some(DivisionByZero) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 46,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 9310,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 46,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 9310,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "c8ac3aa5015d73d6798bc30493845556212acf77073434ba8971407020bc64d2",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: division-by-zero-mod-Epoch3_4-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "Some(DivisionByZero) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 46,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 9310,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 46,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 9310,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "c5b255b902e73f868a0f9859569ff7d8ff535d88894522ea6cbd912c3aadefb7",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: division-by-zero-mod-Epoch3_4-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "Some(DivisionByZero) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 46,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 9310,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 46,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 9310,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "6c8b06c90b4837b40824e7d90f36dbfe5823a2743b4bdc15cc868fc40c6ea60b",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: division-by-zero-mod-Epoch3_4-Clarity4, code_body: [..], clarity_version: Some(Clarity4))",
+        vm_error: "Some(DivisionByZero) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 46,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 9310,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 46,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 9310,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "84dcbd44ba16d23df1016129603c6d02fa13abc3b6789fa28d39750e27881c4b",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: division-by-zero-mod-Epoch3_4-Clarity5, code_body: [..], clarity_version: Some(Clarity5))",
+        vm_error: "Some(DivisionByZero) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 46,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 9310,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 46,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 9310,
+    ),
+  )),
+]

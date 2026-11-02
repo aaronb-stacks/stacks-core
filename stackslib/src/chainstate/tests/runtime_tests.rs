@@ -31,9 +31,9 @@ use crate::chainstate::stacks::boot::test::{
     make_signer_key_signature,
 };
 use crate::chainstate::tests::consensus::{
-    clarity_versions_for_epoch, contract_call_consensus_snap_test,
-    contract_deploy_consensus_snap_test, max_tested_epoch, tested_epochs_since, ConsensusTest,
-    ConsensusUtils, ContractConsensusTest, TestBlock, EPOCHS_TO_TEST, SK_1,
+    assert_epoch_snapshots, clarity_versions_for_epoch, contract_call_consensus_snap_test,
+    contract_deploy_consensus_snap_test, tested_epochs_since, ConsensusTest, ConsensusUtils,
+    ContractConsensusTest, TestBlock, EPOCHS_TO_TEST, SK_1,
 };
 use crate::core::test_util::to_addr;
 use crate::util_lib::signed_structured_data::pox4::Pox4SignatureTopic;
@@ -592,7 +592,7 @@ fn stack_depth_too_deep_call_chain_cdeploy() {
         result.extend(each_result);
     }
 
-    insta::assert_ron_snapshot!(result);
+    assert_epoch_snapshots!(result);
 }
 
 /// Error: [`RuntimeError::MaxStackDepthReached`]
@@ -659,7 +659,7 @@ fn stack_depth_too_deep_call_chain_ccall() {
     }
 
     let result = ConsensusTest::new(function_name!(), vec![], epoch_blocks).run();
-    insta::assert_ron_snapshot!(result);
+    assert_epoch_snapshots!(result);
 }
 
 /// Error: [`RuntimeError::UnknownBlockHeaderHash`]
@@ -757,7 +757,7 @@ fn unwrap_panic_on_err_runtime() {
 }
 
 /// Error: [`RuntimeError::DefunctPoxContract`]
-/// Caused by: calling stack-stx on outdated pox contracts in the latest epoch
+/// Caused by: calling stack-stx on outdated pox contracts in Epoch 4.0
 /// Outcome: block accepted
 #[test]
 fn defunct_pox_contracts() {
@@ -839,11 +839,13 @@ fn defunct_pox_contracts() {
         })
     }
 
-    let epoch_blocks = HashMap::from([(max_tested_epoch(), blocks)]);
+    // Pinned rather than tracking the latest tested epoch, so adding an epoch to
+    // `EPOCHS_TO_TEST` does not move these results into a different snapshot.
+    let epoch_blocks = HashMap::from([(StacksEpochId::Epoch40, blocks)]);
 
     let results = ConsensusTest::new(function_name!(), initial_balances, epoch_blocks).run();
 
-    insta::assert_ron_snapshot!(results);
+    assert_epoch_snapshots!(results);
 }
 
 /// Error: [`RuntimeError::BlockTimeNotAvailable`]

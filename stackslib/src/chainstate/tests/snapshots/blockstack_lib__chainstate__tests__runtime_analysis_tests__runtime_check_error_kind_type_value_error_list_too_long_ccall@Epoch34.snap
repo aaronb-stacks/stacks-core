@@ -1,0 +1,1047 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "b2dfb8ef23fb3cf8e7c7f267183a63ce48820d6e407f6edceda74a1973c4d136",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch3_4-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 74,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 10016,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 74,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 10016,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "5f17ef927357e198d5fef9f104a36f2813bfd1fc8752879cab12001ca377d6f0",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch3_4-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 74,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 10016,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 74,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 10016,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "d86693a09939e52dcce71420afa5d3fc6ab1bf8bd47cbc9867a715aa47993fac",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch3_4-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 74,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 10016,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 74,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 10016,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "f3eddaa0d2783b4eac6ee6856bced560c4d0cdabf47cedca0dceb90f1158d126",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch3_4-Clarity4, code_body: [..], clarity_version: Some(Clarity4))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 74,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 10016,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 74,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 10016,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "0e32a87b72ba90a0fc48da82fd3eb799284f60cedc3532684688360e01a93d06",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: check-error-kind-Epoch3_4-Clarity5, code_body: [..], clarity_version: Some(Clarity5))",
+        vm_error: "None [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: true,
+          data: Bool(true),
+        )),
+        cost: ExecutionCost(
+          write_length: 74,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 10016,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 74,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 10016,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "b7fe255fc167d38d5af534a19ffe2c14985f8901808b3bcb1e22624231cefcf0",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_0-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "8ea2cf516844c7f4297789b7ca50d118fc800fdccaaa774d70879ee2fae05130",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_05-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "1a4932e574fa93f4b85e0d9dd778d1102434bea0fa6f2b0a2295d0a8bbb283f0",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_1-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "02abe4fcc969ce8237d532b9135ffdf12b593093cbba49f8aab240ec9dd087b3",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_1-Clarity2, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "cdd90f7ffb91c4897bbdf3cfae33f7fe80c8a3d7511559f42e29234e7f75075e",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_2-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "386cd8c0c0d3756b602f0d940910cffd65aadef7c251ab5792518fe7ae2172ff",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_2-Clarity2, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "bce10d08f7d3cf9c272ee144513c37646649e10577e60ee26d9427bd55e116bf",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_3-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "accfc81cde4ce107279ef454e27d9304f71d0e3c956de516a4dd1cf64041afa2",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_3-Clarity2, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "992f77c4ff207bb1a8d08f575b3858ef8c2902bb01ebdbf66636c1b4d8217c23",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_4-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "c9641b0f2d88bf49f963183c7c3c24198f27265e046a57b814b368325aae266d",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_4-Clarity2, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "4e5acc874d955794fcf5057824099ea751665df4597ed3135eead4c13752a5ab",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_5-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "47090ef19add8a66403eed1c96fcfca7f2d9f62247e61f0625569b6249dcd4e2",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch2_5-Clarity2, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "2d1b41466034d1b5fd627f744867933587dc978dc8267f8de5df177cefe825d8",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_0-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "27b903ad681eb987442bf8778944f983a5a4c94bbf3a3a1cd2b6a1de61417074",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_0-Clarity2, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "85a5b20294fa644c3ea4d62e0cc678e811ac515679b59a2669157b31a0ac624d",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_0-Clarity3, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "f108a4395441152b3bf0b9141ca1db2beae7df173cc1abf862e9bdf8a01336f7",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_1-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "9a46a3b392d3bce244ef3d45a9f5acada0de83cef97bcd5d45a11f28879c17b5",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_1-Clarity2, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "1fc12a4e5e26689d6ad555d88f6741165ae100acb79f67dd070e0a68ff08c724",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_1-Clarity3, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "fc3f0d4d20e1a8706809f6274cffa76de64d879cb7e0b5b6942b9bae3f026284",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_2-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "95abe0b8c0f27a07e44eca7da2fcf8a2ddb516d6d8c103e15b0b903de9eb8811",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_2-Clarity2, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "30be408556331b59ad42bcb88cb30da425b274ce56cae8aa44b48dfd1523c253",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_2-Clarity3, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "bacf0116429616f2151846165c9aee164345fcf3e0f9e3f49c42074fc490ea2f",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_3-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "027bc663dc73bbe0970f8793a3c68bc0c20403e8c7d928c90758969bc7a90e66",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_3-Clarity2, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "953204d7d96e4039084ca3f7af1a797d7a019f7ba530761a832a32804aef5fd8",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_3-Clarity3, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "360bf6eec8ad5f4d0ca60d8c46b5be64037d6fc21e0d7094e9ce67722c0f28fa",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_3-Clarity4, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "f917e50dfc57285f839938e01101461fc1b7653d5945cd70b48fc420a5fdd5cb",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_4-Clarity1, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "98385bea2b614ea55db1a1c4b22d505b47bbf9b0f799639fc2aa17f09ae6aeec",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_4-Clarity2, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "3f9e56575bbbf0ad84c8b6c4decdc95987e9cd56c7fbcff14d261ee7257f6bff",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_4-Clarity3, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "26d727e534d33e08d3470fadf77c5cc6471922691f62d458a17d7fe1ecc709a3",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_4-Clarity4, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "85d23a50539bcee5e81cd55deb64195edde259ac8c2ba8a5809f48505da26665",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "ContractCall(address: ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP, contract_name: check-error-kind-Epoch3_4-Clarity5, function_name: trigger-error, function_args: [[Sequence(List((u1 u2 u3)))]])",
+        vm_error: "Some(TypeValueError(SequenceType(ListType(ListTypeData { max_len: 2, entry_type: UIntType, size: 38 })), \"Sequence(List((u1 u2 u3)))\")) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 0,
+          write_count: 0,
+          read_length: 60,
+          read_count: 3,
+          runtime: 283,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 0,
+      write_count: 0,
+      read_length: 60,
+      read_count: 3,
+      runtime: 283,
+    ),
+  )),
+]

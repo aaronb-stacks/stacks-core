@@ -1,0 +1,157 @@
+---
+source: stackslib/src/chainstate/tests/runtime_analysis_tests.rs
+expression: results
+snapshot_kind: text
+---
+[
+  Success(ExpectedBlockOutput(
+    marf_hash: "c1c61c60158e2889e6642bf74236caf135989aff679f61b95a6560b39620f0c4",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_4-Clarity1, code_body: [..], clarity_version: Some(Clarity1))",
+        vm_error: "Some(ValueTooLarge) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1472,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 84104599,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1472,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 84104599,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "d5d905d8cbe5f343113da41d9ac8e009695b6dbd0c9b9ace486bc2a2a0fbd55b",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_4-Clarity2, code_body: [..], clarity_version: Some(Clarity2))",
+        vm_error: "Some(ValueTooLarge) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1472,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 84104599,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1472,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 84104599,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "dc64519f3d9c77216b4406c951d60c2995b8516683e518a46362b23559862293",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_4-Clarity3, code_body: [..], clarity_version: Some(Clarity3))",
+        vm_error: "Some(ValueTooLarge) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1472,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 84104599,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1472,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 84104599,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "a8882723c0b70682223919c336f2fa62403afc20dc7ef22661eb5d9e32af6d66",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_4-Clarity4, code_body: [..], clarity_version: Some(Clarity4))",
+        vm_error: "Some(ValueTooLarge) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1472,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 84104599,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1472,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 84104599,
+    ),
+  )),
+  Success(ExpectedBlockOutput(
+    marf_hash: "0f590df3c61185ba0a328c325f6a170c3bee8d9ef2d56ba52064e9439f6eadda",
+    evaluated_epoch: Epoch34,
+    transactions: [
+      ExpectedTransactionOutput(
+        tx: "SmartContract(name: value-too-large-Epoch3_4-Clarity5, code_body: [..], clarity_version: Some(Clarity5))",
+        vm_error: "Some(ValueTooLarge) [NON-CONSENSUS BREAKING]",
+        return_type: Response(ResponseData(
+          committed: false,
+          data: Optional(OptionalData(
+            data: None,
+          )),
+        )),
+        cost: ExecutionCost(
+          write_length: 1472,
+          write_count: 2,
+          read_length: 1,
+          read_count: 1,
+          runtime: 84104599,
+        ),
+      ),
+    ],
+    total_block_cost: ExecutionCost(
+      write_length: 1472,
+      write_count: 2,
+      read_length: 1,
+      read_count: 1,
+      runtime: 84104599,
+    ),
+  )),
+]

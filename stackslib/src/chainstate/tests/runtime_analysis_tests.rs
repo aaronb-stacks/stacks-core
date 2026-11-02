@@ -24,9 +24,9 @@ use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, MAX_TYPE_DE
 use clarity::vm::{ClarityVersion, ContractName, Value as ClarityValue};
 
 use crate::chainstate::tests::consensus::{
-    contract_call_consensus_snap_test, contract_deploy_consensus_snap_test, tested_epochs_since,
-    ConsensusTest, ConsensusUtils, SetupContract, TestBlock, EPOCHS_TO_TEST, FAUCET_ADDRESS,
-    FAUCET_PRIV_KEY,
+    assert_epoch_snapshots, contract_call_consensus_snap_test, contract_deploy_consensus_snap_test,
+    tested_epochs_since, ConsensusTest, ConsensusUtils, SetupContract, TestBlock, EPOCHS_TO_TEST,
+    FAUCET_ADDRESS, FAUCET_PRIV_KEY,
 };
 use crate::core::test_util::to_addr;
 use crate::core::BLOCK_LIMIT_MAINNET_40;
@@ -1071,7 +1071,7 @@ fn runtime_check_error_kind_no_such_contract_ccall() {
     }
 
     let result = ConsensusTest::new(function_name!(), vec![], epochs_blocks).run();
-    insta::assert_ron_snapshot!(result);
+    assert_epoch_snapshots!(result);
 }
 
 /// RuntimeCheckErrorKind: [`RuntimeCheckErrorKind::CouldNotDetermineType`]

@@ -27,8 +27,9 @@ use clarity::vm::types::MAX_VALUE_SIZE;
 use stacks_common::codec::MAX_MESSAGE_LEN;
 
 use crate::chainstate::tests::consensus::{
-    block_limit_for_epoch, clarity_versions_for_epoch, contract_deploy_consensus_snap_test,
-    ConsensusTest, ConsensusUtils, ExpectedResult, TestBlock, EPOCHS_TO_TEST,
+    assert_epoch_snapshots, block_limit_for_epoch, clarity_versions_for_epoch,
+    contract_deploy_consensus_snap_test, ConsensusTest, ConsensusUtils, ExpectedResult, TestBlock,
+    EPOCHS_TO_TEST,
 };
 use crate::util_lib::boot::boot_code_id;
 
@@ -248,7 +249,7 @@ fn test_cost_balance_exceeded() {
         "all filler blocks must be accepted"
     );
 
-    insta::assert_ron_snapshot!(rejections);
+    assert_epoch_snapshots!(rejections);
 }
 
 /// ParserError: [`ParseErrorKind::ExpressionStackDepthTooDeep`]
