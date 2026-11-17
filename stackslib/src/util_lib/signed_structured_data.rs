@@ -36,7 +36,7 @@ pub fn structured_data_hash(value: Value) -> Sha256Sum {
 /// Reference [SIP018](https://github.com/stacksgov/sips/blob/main/sips/sip-018/sip-018-signed-structured-data.md) for more information.
 pub fn structured_data_message_hash(structured_data: Value, domain: Value) -> Sha256Sum {
     let message = [
-        STRUCTURED_DATA_PREFIX.as_ref(),
+        &STRUCTURED_DATA_PREFIX[..],
         structured_data_hash(domain).as_bytes(),
         structured_data_hash(structured_data).as_bytes(),
     ]

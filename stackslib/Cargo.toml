@@ -23,7 +23,16 @@ serde = "1"
 serde_derive = "1"
 secp256k1 = "0.24.3"
 sha2 = "0.10"
-hmac = "0.12"
+# sBTC deposit-address derivation (consensus-critical; see
+# `chainstate::stacks::sbtc`, which also documents why this is not a
+# `[patch]`). `sbtc` brings its own copy of stacks-core's `clarity` and
+# `stacks-common`; `sbtc-clarity` names that copy so the node can build the
+# recipient principal in it. Its `rev` must equal the stacks-core `rev` in
+# `sbtc`'s workspace `Cargo.toml` at the pinned `sbtc` revision; otherwise a
+# third copy appears and the adapter fails to compile.
+sbtc = { git = "https://github.com/stacks-sbtc/sbtc", rev = "6ec5dbeecb606fc2e921661ec9b43a6ad3545e6e" }
+sbtc-clarity = { package = "clarity", git = "https://github.com/stacks-network/stacks-core", rev = "1cba695b09690790b1220b0f5d149f70f78ddea5", default-features = false }
+bitcoin = { version = "0.32", default-features = false, features = ["std"] }
 ripemd = "0.1.1"
 regex = "1"
 mio = "0.6"

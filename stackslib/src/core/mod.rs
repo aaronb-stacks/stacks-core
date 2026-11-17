@@ -85,46 +85,9 @@ pub const TX_RECEIPT_SIZE_PROPORTION_HEURISTIC: u64 = 75;
 
 pub const GENESIS_EPOCH: StacksEpochId = StacksEpochId::Epoch20;
 
-/// The x-coordinate public key with no known discrete logarithm.
-///
-/// # Notes
-///
-/// This particular X-coordinate was discussed in the original taproot BIP
-/// on spending rules BIP-0341[1]. Specifically, the X-coordinate is formed
-/// by taking the hash of the standard uncompressed encoding of the
-/// secp256k1 base point G as the X-coordinate. In that BIP the authors
-/// wrote the X-coordinate that is reproduced below.
-///
-/// [1]: https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#constructing-and-spending-taproot-outputs
-#[rustfmt::skip]
-pub const NUMS_X_COORDINATE: [u8; 32] = [
-    0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54,
-    0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
-    0x07, 0x8a, 0x5a, 0x0f, 0x28, 0xec, 0x96, 0xd5,
-    0x47, 0xbf, 0xee, 0x9a, 0xce, 0x80, 0x3a, 0xc0,
-];
-
 /// Maximum BTC fee, in satoshis, encoded into the sBTC deposit script's
 /// `<deposit-data>` payload. Chosen high enough that real-world bitcoin fees never exceed it.
 pub const POX_5_SBTC_DEPOSIT_MAX_FEE_SATS: u64 = 80_000;
-
-/// The x-only internal key used by sBTC v2 (Taproot script-path multisig)
-/// outputs. This is the `/0/0` BIP-32 child of the BIP-0341 NUMS point
-/// (`NUMS_X_COORDINATE`) treated as an extended public key with an all-zero
-/// chain code, so hardware wallets can express it as `@0/**` in a BIP-0388
-/// wallet policy. No private key is known: one would also reveal the NUMS
-/// private key. Mirrors `sbtc::V2_NUMS_X_COORDINATE`.
-#[rustfmt::skip]
-pub const SBTC_V2_NUMS_X_COORDINATE: [u8; 32] = [
-    0x4a, 0x30, 0xb2, 0xe4, 0x61, 0xb2, 0x80, 0xc0,
-    0xb1, 0x3a, 0x03, 0x79, 0x90, 0x96, 0xab, 0x12,
-    0x56, 0x58, 0x91, 0x53, 0xfc, 0x4b, 0x9c, 0x8c,
-    0xea, 0xd1, 0x6d, 0xc0, 0xb6, 0x42, 0x06, 0x97,
-];
-
-/// Maximum number of distinct signer keys in an sBTC v2 key set, following
-/// the 16-key `multi_a` tapscript limit. Mirrors `sbtc::MAX_SIGNERS`.
-pub const SBTC_V2_MAX_SIGNERS: usize = 16;
 
 /// The number of blocks which will share the block bonus
 ///   from burn blocks that occurred without a sortition.
